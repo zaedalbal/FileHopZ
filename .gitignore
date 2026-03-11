@@ -1,0 +1,156 @@
+# Build directories
+build/
+build*/
+cmake-build-*/
+out/
+bin/
+dist/
+target/
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+Makefile
+CTestTestfile.cmake
+_deps/
+*.cmake
+!CMakeLists.txt
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+proxy
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+
+# IDE and Editor files
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.cproject
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Dependencies and package managers
+.cache/
+compile_commands.json
+conan.lock
+conanbuildinfo.*
+conaninfo.txt
+graph_info.json
+vcpkg_installed/
+.vcpkg/
+
+# Testing
+Testing/
+test_detail.xml
+*.log
+
+# Coverage
+*.gcda
+*.gcno
+*.gcov
+coverage/
+*.lcov
+
+# Profiling
+*.prof
+gmon.out
+
+# Valgrind
+*.memcheck
+*.helgrind
+*.drd
+callgrind.out.*
+massif.out.*
+
+# Documentation
+html/
+latex/
+docs/_build/
+*.aux
+*.bbl
+*.blg
+*.toc
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*.temp
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Core dumps
+core
+core.*
+
+#  lib
+tomlplusplus/
+*.toml
