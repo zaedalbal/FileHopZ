@@ -9,6 +9,8 @@ class Receiver
         boost::system::error_code start();
     
     private:
+        boost::system::error_code confirmation_request();
+
         boost::system::error_code start_receive_file();
     
     private:
@@ -17,6 +19,10 @@ class Receiver
         unsigned short port_;
 
         std::ofstream& output_file_;
+        
+        uint64_t receive_file_size_;
 
         boost::asio::ip::udp::socket socket_;
+
+        boost::asio::ip::udp::endpoint sender_endpoint_;
 };

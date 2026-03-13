@@ -12,23 +12,65 @@ socket_(context_, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), por
 
 boost::system::error_code Receiver::start()
 {
-    auto ec = start_receive_file();
-    if(!ec)
-        std::cout << "File successfully received!\n";
-    return ec;
+    return confirmation_request();
+}
+
+boost::system::error_code Receiver::confirmation_request()
+{
+    boost::system::error_code ec;
+    Packet packet;
+    socket_.receive_from(boost::asio::buffer(&packet, sizeof(packet)), sender_endpoint_, 0, ec);
+    if(ec)
+    {
+        std::cerr << ec.message() << "\n";
+        return ec;
+    }
+    std::memcpy(&receive_file_size_, packet.data, sizeof(uint64_t));
+    std::cout << "Receive file size = " << receive_file_size_ << "\n";
+    std::string confirm;
+    while(true)
+    {
+        std::cout << "Enter 'y' to continue or 'n' to exit: ";
+        std::getline(std::cin, confirm);
+        if(confirm == "Y" || confirm == "y")
+        {
+            Packet confirm_packet;
+            confirm_packet.type = PacketType::CONFIRM;
+            confirm_packet.size = 0;
+            socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), sender_endpoint_, 0 ,ec);
+            if(ec)
+            {
+                std::cerr << ec.message() << "\n";
+                return ec;
+            }
+            return start_receive_file();
+        }
+        else if(confirm == "n" || confirm == "N")
+        {
+            Packet confirm_packet;
+            confirm_packet.type = PacketType::CONFIRM_FAILED;
+            confirm_packet.size = 0;
+            socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), sender_endpoint_, 0 ,ec);
+            if(ec)
+            {
+                std::cerr << ec.message() << "\n";
+                return ec;
+            }
+            return ec;
+        }
+    }
 }
 
 boost::system::error_code Receiver::start_receive_file()
 {
     boost::system::error_code ec;
-    boost::asio::ip::udp::endpoint sender_endpoint;
 
     uint32_t expected_seq = 0;
 
     while(true)
     {
         Packet packet;
-        auto len = socket_.receive_from(boost::asio::buffer(&packet, sizeof(packet)), sender_endpoint, 0, ec);
+        auto len = socket_.receive_from(boost::asio::buffer(&packet, sizeof(packet)), sender_endpoint_, 0, ec);
         if(ec)
         {
             std::cerr << ec.message() << "\n";
@@ -43,7 +85,7 @@ boost::system::error_code Receiver::start_receive_file()
             output_file_.write(packet.data, packet.size);
             ++expected_seq;
         }
-        socket_.send_to(boost::asio::buffer(&packet.sequense, sizeof(packet.sequense)), sender_endpoint, 0, ec);
+        socket_.send_to(boost::asio::buffer(&packet.sequense, sizeof(packet.sequense)), sender_endpoint_, 0, ec);
         if(ec)
         {
             std::cerr << ec.message() << "\n";

@@ -10,6 +10,8 @@ class Sender
         boost::system::error_code start();
     
     private:
+        boost::system::error_code wait_confirm();
+
         boost::system::error_code send_file();
 
     private:
@@ -22,4 +24,6 @@ class Sender
         unsigned short receiver_port_;
 
         boost::asio::ip::udp::socket socket_;
+
+        boost::asio::ip::udp::endpoint receiver_endpoint_;
 };
