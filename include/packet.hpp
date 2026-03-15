@@ -23,7 +23,7 @@ struct PacketHeader
 {
     PacketType type;
     PacketFlags flags;
-    uint32_t sequense;
+    uint32_t sequence;
     uint16_t size;
 };
 

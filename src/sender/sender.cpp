@@ -54,7 +54,7 @@ boost::system::error_code Sender::start_transfer()
     {
         Packet packet;
         file_to_send_.read(packet.data, PACKET_SIZE);
-        packet.header.sequense = seq;
+        packet.header.sequence = seq;
         packet.header.size = file_to_send_.gcount();
 
         socket_.send_to(boost::asio::buffer(&packet, sizeof(PacketHeader) + packet.header.size), peer_endpoint_);
@@ -82,7 +82,7 @@ boost::system::error_code Sender::start_transfer()
             break;
     }
     Packet end_packet;
-    end_packet.header.sequense = seq;
+    end_packet.header.sequence = seq;
     end_packet.header.size = 0;
     socket_.send_to(boost::asio::buffer(&end_packet, sizeof(PacketHeader)), peer_endpoint_);
     return ec;

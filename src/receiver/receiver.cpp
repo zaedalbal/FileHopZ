@@ -79,12 +79,12 @@ boost::system::error_code Receiver::start_transfer()
         {
             break;
         }
-        if(packet.header.sequense == expected_seq)
+        if(packet.header.sequence == expected_seq)
         {
             output_file_.write(packet.data, packet.header.size);
             ++expected_seq;
         }
-        socket_.send_to(boost::asio::buffer(&packet.header.sequense, sizeof(packet.header.sequense)), peer_endpoint_, 0, ec);
+        socket_.send_to(boost::asio::buffer(&packet.header.sequence, sizeof(packet.header.sequence)), peer_endpoint_, 0, ec);
         if(ec)
         {
             std::cerr << ec.message() << "\n";
