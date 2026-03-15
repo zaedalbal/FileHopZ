@@ -3,8 +3,7 @@
 #include <iostream>
 
 Receiver::Receiver(boost::asio::io_context& context, unsigned short port, std::ofstream& output_file)
-: context_(context), port_(port), output_file_(output_file),
-socket_(context_, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), port_))
+: Data_transfer(context, port), output_file_(output_file)
 {
     std::cout << "Receiver constructor called\n";
     start();
@@ -12,14 +11,14 @@ socket_(context_, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), por
 
 boost::system::error_code Receiver::start()
 {
-    return confirmation_request();
+    return transfer_confirmation();
 }
 
-boost::system::error_code Receiver::confirmation_request()
+boost::system::error_code Receiver::transfer_confirmation()
 {
     boost::system::error_code ec;
     Packet packet;
-    socket_.receive_from(boost::asio::buffer(&packet, sizeof(packet)), sender_endpoint_, 0, ec);
+    socket_.receive_from(boost::asio::buffer(&packet, sizeof(packet)), peer_endpoint_, 0, ec);
     if(ec)
     {
         std::cerr << ec.message() << "\n";
@@ -37,20 +36,20 @@ boost::system::error_code Receiver::confirmation_request()
             Packet confirm_packet;
             confirm_packet.type = PacketType::CONFIRM;
             confirm_packet.size = 0;
-            socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), sender_endpoint_, 0 ,ec);
+            socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), peer_endpoint_, 0 ,ec);
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
                 return ec;
             }
-            return start_receive_file();
+            return start_transfer();
         }
         else if(confirm == "n" || confirm == "N")
         {
             Packet confirm_packet;
             confirm_packet.type = PacketType::CONFIRM_FAILED;
             confirm_packet.size = 0;
-            socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), sender_endpoint_, 0 ,ec);
+            socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), peer_endpoint_, 0 ,ec);
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
@@ -61,7 +60,7 @@ boost::system::error_code Receiver::confirmation_request()
     }
 }
 
-boost::system::error_code Receiver::start_receive_file()
+boost::system::error_code Receiver::start_transfer()
 {
     boost::system::error_code ec;
 
@@ -70,7 +69,7 @@ boost::system::error_code Receiver::start_receive_file()
     while(true)
     {
         Packet packet;
-        auto len = socket_.receive_from(boost::asio::buffer(&packet, sizeof(packet)), sender_endpoint_, 0, ec);
+        auto len = socket_.receive_from(boost::asio::buffer(&packet, sizeof(packet)), peer_endpoint_, 0, ec);
         if(ec)
         {
             std::cerr << ec.message() << "\n";
@@ -85,7 +84,7 @@ boost::system::error_code Receiver::start_receive_file()
             output_file_.write(packet.data, packet.size);
             ++expected_seq;
         }
-        socket_.send_to(boost::asio::buffer(&packet.sequense, sizeof(packet.sequense)), sender_endpoint_, 0, ec);
+        socket_.send_to(boost::asio::buffer(&packet.sequense, sizeof(packet.sequense)), peer_endpoint_, 0, ec);
         if(ec)
         {
             std::cerr << ec.message() << "\n";

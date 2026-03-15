@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdint>
 
 constexpr std::size_t PACKET_SIZE = 1024;

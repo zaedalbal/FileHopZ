@@ -1,29 +1,21 @@
+#pragma once
+#include "data_transfer.hpp"
 #include <fstream>
 #include <boost/asio.hpp>
 
-class Sender
+class Sender : public Data_transfer
 {
     public:
         // constructor
         explicit Sender(boost::asio::io_context& context, const std::string& ip, unsigned short port, std::ifstream& file);
 
-        boost::system::error_code start();
+        boost::system::error_code start() override;
     
     private:
-        boost::system::error_code wait_confirm();
+        boost::system::error_code transfer_confirmation() override;
 
-        boost::system::error_code send_file();
+        boost::system::error_code start_transfer() override;
 
     private:
-        boost::asio::io_context& context_;
-
         std::ifstream& file_to_send_;
-
-        const std::string& receiver_address_;
-
-        unsigned short receiver_port_;
-
-        boost::asio::ip::udp::socket socket_;
-
-        boost::asio::ip::udp::endpoint receiver_endpoint_;
 };
