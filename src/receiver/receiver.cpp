@@ -34,8 +34,8 @@ boost::system::error_code Receiver::transfer_confirmation()
         if(confirm == "Y" || confirm == "y")
         {
             Packet confirm_packet;
-            confirm_packet.type = PacketType::CONFIRM;
-            confirm_packet.size = 0;
+            confirm_packet.header.type = PacketType::CONFIRM;
+            confirm_packet.header.size = 0;
             socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), peer_endpoint_, 0 ,ec);
             if(ec)
             {
@@ -47,8 +47,8 @@ boost::system::error_code Receiver::transfer_confirmation()
         else if(confirm == "n" || confirm == "N")
         {
             Packet confirm_packet;
-            confirm_packet.type = PacketType::CONFIRM_FAILED;
-            confirm_packet.size = 0;
+            confirm_packet.header.type = PacketType::CONFIRM_FAILED;
+            confirm_packet.header.size = 0;
             socket_.send_to(boost::asio::buffer(&confirm_packet, sizeof(confirm_packet)), peer_endpoint_, 0 ,ec);
             if(ec)
             {
@@ -75,16 +75,16 @@ boost::system::error_code Receiver::start_transfer()
             std::cerr << ec.message() << "\n";
             return ec;
         }
-        if(packet.size == 0)
+        if(packet.header.size == 0)
         {
             break;
         }
-        if(packet.sequense == expected_seq)
+        if(packet.header.sequense == expected_seq)
         {
-            output_file_.write(packet.data, packet.size);
+            output_file_.write(packet.data, packet.header.size);
             ++expected_seq;
         }
-        socket_.send_to(boost::asio::buffer(&packet.sequense, sizeof(packet.sequense)), peer_endpoint_, 0, ec);
+        socket_.send_to(boost::asio::buffer(&packet.header.sequense, sizeof(packet.header.sequense)), peer_endpoint_, 0, ec);
         if(ec)
         {
             std::cerr << ec.message() << "\n";

@@ -19,18 +19,18 @@ enum PacketFlags : uint8_t
 
 #pragma pack(push, 1) // выравнивание по 1 байту
 
-struct Packet
+struct PacketHeader
 {
     PacketType type;
     PacketFlags flags;
     uint32_t sequense;
     uint16_t size;
+};
+
+struct Packet
+{
+    PacketHeader header;
     char data[PACKET_SIZE];
 };
 
 #pragma pack(pop) // восстановление выравнивания
-
-constexpr std::size_t PacketHeader = sizeof(uint8_t)
-+ sizeof(uint8_t)
-+ sizeof(uint32_t)
-+ sizeof(uint16_t);

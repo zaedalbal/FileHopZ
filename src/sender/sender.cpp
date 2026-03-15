@@ -37,7 +37,7 @@ boost::system::error_code Sender::transfer_confirmation()
         std::cerr << ec.message() << "\n";
         return ec;
     }
-    if(packet.type == PacketType::CONFIRM)
+    if(packet.header.type == PacketType::CONFIRM)
         return start_transfer();
     else
         return ec;
@@ -54,10 +54,10 @@ boost::system::error_code Sender::start_transfer()
     {
         Packet packet;
         file_to_send_.read(packet.data, PACKET_SIZE);
-        packet.sequense = seq;
-        packet.size = file_to_send_.gcount();
+        packet.header.sequense = seq;
+        packet.header.size = file_to_send_.gcount();
 
-        socket_.send_to(boost::asio::buffer(&packet, PacketHeader + packet.size), peer_endpoint_);
+        socket_.send_to(boost::asio::buffer(&packet, sizeof(PacketHeader) + packet.header.size), peer_endpoint_);
 
         timer.expires_after(std::chrono::milliseconds(TIMEOUT));
         bool ack_received = false;
@@ -72,18 +72,18 @@ boost::system::error_code Sender::start_transfer()
             {
                 if(timer.expiry() <= std::chrono::steady_clock::now())
                 {
-                    socket_.send_to(boost::asio::buffer(&packet, PacketHeader + packet.size), peer_endpoint_);
+                    socket_.send_to(boost::asio::buffer(&packet, sizeof(PacketHeader) + packet.header.size), peer_endpoint_);
                     timer.expires_after(std::chrono::milliseconds(TIMEOUT));
                 }
             }
         }
         ++seq;
-        if(packet.size < PACKET_SIZE)
+        if(packet.header.size < PACKET_SIZE)
             break;
     }
     Packet end_packet;
-    end_packet.sequense = seq;
-    end_packet.size = 0;
-    socket_.send_to(boost::asio::buffer(&end_packet, PacketHeader), peer_endpoint_);
+    end_packet.header.sequense = seq;
+    end_packet.header.size = 0;
+    socket_.send_to(boost::asio::buffer(&end_packet, sizeof(PacketHeader)), peer_endpoint_);
     return ec;
 }
