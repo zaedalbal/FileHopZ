@@ -28,10 +28,15 @@ class Data_transfer
 
         virtual boost::system::error_code receive_packet(); // пока что нет реализации
 
+        // error код всегда пустой, он сделан чтобы в будущем можно было че то добавить и не менять возращаемый тип
+        virtual boost::system::error_code print_progress(std::size_t bytes_transferred);
+
     protected:
         boost::asio::io_context& context_;
 
         boost::asio::ip::udp::socket socket_;
 
         boost::asio::ip::udp::endpoint peer_endpoint_;
+
+        std::size_t bytes_to_transfer;
 };
