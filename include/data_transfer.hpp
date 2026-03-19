@@ -27,10 +27,10 @@ class Data_transfer
 
         virtual boost::system::error_code start_transfer() = 0;
 
-        virtual boost::system::error_code send_packet(Packet* source, std::size_t* bytes_transferred_ptr); // пока что нет реализации
+        virtual boost::system::error_code send_packet(Packet* source, std::size_t* bytes_transferred_ptr);
         virtual boost::system::error_code send_packet(PacketHeader* source, std::size_t* bytes_transferred_ptr);
 
-        virtual boost::system::error_code receive_packet(Packet* destination, std::size_t* bytes_transferred_ptr); // пока что нет реализации
+        virtual boost::system::error_code receive_packet(Packet* destination, std::size_t* bytes_transferred_ptr);
         virtual boost::system::error_code receive_packet(PacketHeader* destination, std::size_t* bytes_transferred_ptr);
 
         // error код всегда пустой, он сделан чтобы в будущем можно было че то добавить и не менять возращаемый тип
