@@ -9,7 +9,14 @@ enum PacketType : uint8_t
     KEEP_ALIVE, // проверка соеденения
 
     CONFIRM, // подтверждение что receiver готов принять файл
-    CONFIRM_FAILED // оповещение отправителя, если пользователь отказался принимать файл
+    CONFIRM_FAILED, // оповещение отправителя, если пользователь отказался принимать файл
+
+    CREATE_DIRECTORY, // при этом типе пакета название директории, котрый надо создать передается в data
+    CREATE_FILE, // при этом типе пакета название файла, котрый надо создать передается в data
+    FILE_DATA, // данный тип указывает что передается просто кусок данных
+    END_FILE, // данный тип указывает что достигнут конец файла
+
+    END_TRANSFER // данный тип указывает что передача всех файлов окончена
 };
 
 enum PacketFlags : uint8_t
@@ -23,8 +30,9 @@ struct PacketHeader
 {
     PacketType type;
     PacketFlags flags;
-    uint32_t sequence;
     uint16_t size;
+    uint32_t file_id;
+    uint32_t sequence;
 };
 
 struct Packet

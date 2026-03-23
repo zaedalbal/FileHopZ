@@ -23,7 +23,7 @@ const std::filesystem::path& File_walker::current_path()
     return current_;
 }
 
-std::filesystem::path File_walker::releative_path()
+std::filesystem::path File_walker::relative_path()
 {
     return std::filesystem::relative(current_, root_);
 }

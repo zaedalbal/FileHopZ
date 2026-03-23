@@ -10,7 +10,7 @@ class File_walker
 
         const std::filesystem::path& current_path(); // получить путь к текущему файлу/дериктории
 
-        std::filesystem::path releative_path(); // получить путь к текущему файлу/дериктории относительно корневой дериктории (root_)
+        std::filesystem::path relative_path(); // получить путь к текущему файлу/дериктории относительно корневой дериктории (root_)
 
     private:
         std::filesystem::path root_;
