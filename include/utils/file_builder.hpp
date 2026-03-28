@@ -20,7 +20,7 @@ class File_builder
         boost::system::error_code create_directory(const std::filesystem::path& relative_path);
 
         // метод для создания файла
-        boost::system::error_code create_file(const std::filesystem::path& relative_path);
+        boost::system::error_code create_file(const std::filesystem::path& relative_path, std::unique_ptr<std::ofstream>& out_file);
 
         // данный метод принимает file_id, чтобы в будущем можно было держать много файлов открытыми
         boost::system::error_code write(const char* data, std::size_t size, uint32_t file_id);
