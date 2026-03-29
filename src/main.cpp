@@ -10,8 +10,8 @@ int main(int argc, char* argv[])
     if(argc < 2)
     {
         std::cout << "Usage:\n";
-        std::cout << "Sender:   ./filehopz send <address> <port> <file>\n";
-        std::cout << "Receiver: ./filehopz recv <port> <output filename>\n";
+        std::cout << "Sender:   ./filehopz send <address> <port> <file/directory>\n";
+        std::cout << "Receiver: ./filehopz recv <port> <output_directory>\n";
         return 1;
     }
 
@@ -19,13 +19,13 @@ int main(int argc, char* argv[])
 
     if(mode == "send" && argc < 5)
     {
-        std::cerr << "Sender usage: ./filehopz send <address> <port> <file>\n";
+        std::cerr << "Sender usage: ./filehopz send <address> <port> <file/directory>\n";
         return 1;
     }
 
     if(mode == "recv" && argc < 4)
     {
-        std::cerr << "Receiver usage: ./filehopz recv <port> <output filename>\n";
+        std::cerr << "Receiver usage: ./filehopz recv <port> <output_directory>\n";
         return 1;
     }
 
@@ -41,18 +41,13 @@ int main(int argc, char* argv[])
             std::cerr << "Invalid port\n";
             return 1;
         }
-        std::ifstream input(argv[4], std::ios::binary);
-        if(!input)
-        {
-            std::cerr << "Cannot open file\n";
-            return 1;
-        }
-        Sender(io_context, address, port, input);
+        std::filesystem::path files_to_send = std::filesystem::path(std::string(argv[4], strlen(argv[4])));
+        Sender(io_context, address, port, files_to_send);
     }
 
     else if(mode == "recv")
     {
-        std::ofstream output_file(argv[3], std::ios::binary);
+        std::filesystem::path out_dir(std::string(argv[3], strlen(argv[3])));
         unsigned short port;
         auto [ptr, ec] = std::from_chars(argv[2], argv[2] + strlen(argv[2]), port);
         if(ec != std::errc())
@@ -60,12 +55,7 @@ int main(int argc, char* argv[])
             std::cerr << "Invalid port\n";
             return 1;
         }
-        if(!output_file)
-        {
-            std::cerr << "Cannot open file\n";
-            return 1;
-        }
-        Receiver(io_context, port, output_file);
+        Receiver(io_context, port, out_dir);
     }
 
     else

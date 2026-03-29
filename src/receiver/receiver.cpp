@@ -2,8 +2,8 @@
 #include "packet.hpp"
 #include <iostream>
 
-Receiver::Receiver(boost::asio::io_context& context, unsigned short port, std::ofstream& output_file)
-: Data_transfer(context, port), output_file_(output_file)
+Receiver::Receiver(boost::asio::io_context& context, unsigned short port, std::filesystem::path& output_directory)
+: Data_transfer(context, port), output_directory_(output_directory), file_builder_(output_directory_)
 {
     std::cout << "Receiver constructor called\n";
     start();
@@ -25,7 +25,7 @@ boost::system::error_code Receiver::transfer_confirmation()
         return ec;
     }
     std::memcpy(&receive_file_size_, packet.data, sizeof(uint64_t));
-    std::cout << "Receive file size = " << receive_file_size_ << "\n";
+    std::cout << "Receive files size = " << receive_file_size_ << "\n";
     std::string confirm;
     while(true)
     {
@@ -62,6 +62,8 @@ boost::system::error_code Receiver::transfer_confirmation()
 
 boost::system::error_code Receiver::start_transfer()
 {
+    std::cout << "ok receiver\n";
+    /*
     boost::system::error_code ec;
 
     uint32_t expected_seq = 0;
@@ -93,4 +95,5 @@ boost::system::error_code Receiver::start_transfer()
     }
     output_file_.close();
     return ec;
+    */
 }

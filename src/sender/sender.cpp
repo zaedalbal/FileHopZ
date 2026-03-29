@@ -2,8 +2,8 @@
 #include <packet.hpp>
 #include <iostream>
 
-Sender::Sender(boost::asio::io_context& context, const std::string& ip, unsigned short port, std::ifstream& file)
-: Data_transfer(context, ip, port), file_to_send_(file)
+Sender::Sender(boost::asio::io_context& context, const std::string& ip, unsigned short port, std::filesystem::path& files_to_send)
+: Data_transfer(context, ip, port), files_to_send_(files_to_send), file_walker_(files_to_send_)
 {
     std::cout << "Sender constructor called\n";
     start();
@@ -17,13 +17,16 @@ boost::system::error_code Sender::start()
 boost::system::error_code Sender::transfer_confirmation()
 {
     boost::system::error_code ec;
-    int64_t filesize;
-    file_to_send_.seekg(0, std::ios::end);
-    filesize = file_to_send_.tellg();
-    file_to_send_.seekg(0, std::ios::beg);
+    uint64_t total_size;
+
+    while(file_walker_.next())
+    {
+        total_size += std::filesystem::file_size(file_walker_.current_path());
+    }
+    file_walker_.reset();
     
     Packet packet;
-    std::memcpy(packet.data, &filesize, sizeof(filesize));
+    std::memcpy(packet.data, &total_size, sizeof(total_size));
 
     socket_.send_to(boost::asio::buffer(&packet, sizeof(packet)), peer_endpoint_, 0, ec);
     if(ec)
@@ -45,6 +48,8 @@ boost::system::error_code Sender::transfer_confirmation()
 
 boost::system::error_code Sender::start_transfer()
 {
+    std::cout << "ok sender\n";
+    /*
     std::error_code return_code;
     boost::system::error_code ec;
     boost::asio::steady_timer timer(context_);
@@ -85,5 +90,5 @@ boost::system::error_code Sender::start_transfer()
     end_packet.header.sequence = seq;
     end_packet.header.size = 0;
     socket_.send_to(boost::asio::buffer(&end_packet, sizeof(PacketHeader)), peer_endpoint_);
-    return ec;
+    return ec; */
 }

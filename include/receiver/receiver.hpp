@@ -1,12 +1,12 @@
 #pragma once
 #include "data_transfer.hpp"
-#include <fstream>
+#include "utils/file_builder.hpp"
 #include <boost/asio.hpp>
 
 class Receiver : public Data_transfer
 {
     public:
-        explicit Receiver(boost::asio::io_context& context, unsigned short port, std::ofstream& output_file);
+        explicit Receiver(boost::asio::io_context& context, unsigned short port, std::filesystem::path& output_file);
 
         boost::system::error_code start() override;
     
@@ -16,7 +16,9 @@ class Receiver : public Data_transfer
         boost::system::error_code start_transfer() override;
     
     private:
-        std::ofstream& output_file_;
+        std::filesystem::path& output_directory_;
+
+        File_builder file_builder_;
         
         uint64_t receive_file_size_;
 };

@@ -12,8 +12,12 @@ class File_walker
 
         std::filesystem::path relative_path(); // получить путь к текущему файлу/дериктории относительно корневой дериктории (root_)
 
+        void reset(); // сброс итератора
+
     private:
         std::filesystem::path root_;
+
+        bool single_file_ = false;
 
         std::filesystem::recursive_directory_iterator it_;
 
