@@ -43,5 +43,5 @@ class Data_transfer
 
         boost::asio::ip::udp::endpoint peer_endpoint_;
 
-        std::size_t bytes_to_transfer;
+        uint64_t bytes_to_transfer_;
 };

@@ -39,6 +39,21 @@ struct Packet
 {
     PacketHeader header;
     char data[PACKET_SIZE];
+
+    boost::system::error_code set_payload(const void* src, std::size_t size)
+    {
+        if(size > PACKET_SIZE)
+            return boost::system::errc::make_error_code(boost::system::errc::value_too_large);
+        std::memcpy(data, src, size);
+        header.size = static_cast<uint16_t>(size);
+        return {};
+    }
+
+    const char* get_payload() const
+    {return data;}
+
+    std::size_t get_payload_size() const
+    {return header.size;}
 };
 
 #pragma pack(pop) // восстановление выравнивания

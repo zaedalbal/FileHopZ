@@ -19,6 +19,4 @@ class Receiver : public Data_transfer
         std::filesystem::path& output_directory_;
 
         File_builder file_builder_;
-        
-        uint64_t receive_file_size_;
 };
