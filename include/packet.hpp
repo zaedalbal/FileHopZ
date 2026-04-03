@@ -2,7 +2,7 @@
 #include <cstdint>
 
 constexpr std::size_t PACKET_SIZE = 1024;
-constexpr int TIMEOUT = 1024; // в миллисекундах
+constexpr std::chrono::milliseconds TIMEOUT(128); // в миллисекундах
 
 enum PacketType : uint8_t
 {
@@ -57,3 +57,9 @@ struct Packet
 };
 
 #pragma pack(pop) // восстановление выравнивания
+
+struct PacketLocal
+{
+    std::chrono::steady_clock::time_point send_time;
+    Packet packet;
+};
