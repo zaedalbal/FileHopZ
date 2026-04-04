@@ -6,23 +6,22 @@ Receiver::Receiver(boost::asio::io_context& context, unsigned short port, std::f
 : Data_transfer(context, port), output_directory_(output_directory), file_builder_(output_directory_)
 {
     std::cout << "Receiver constructor called\n";
-    start();
 }
 
-boost::system::error_code Receiver::start()
+boost::asio::awaitable<boost::system::error_code> Receiver::start()
 {
-    return transfer_confirmation();
+    co_return co_await transfer_confirmation();
 }
 
-boost::system::error_code Receiver::transfer_confirmation()
+boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmation()
 {
     boost::system::error_code ec;
     Packet packet;
-    ec = receive_packet(&packet, nullptr);
+    ec = co_await receive_packet(&packet, nullptr);
     if(ec)
     {
         std::cerr << ec.message() << "\n";
-        return ec;
+        co_return ec;
     }
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
     std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
@@ -36,32 +35,32 @@ boost::system::error_code Receiver::transfer_confirmation()
             Packet confirm_packet;
             confirm_packet.header.type = PacketType::CONFIRM;
             confirm_packet.header.size = 0;
-            ec = send_packet(&confirm_packet, nullptr);
+            ec = co_await send_packet(&confirm_packet, nullptr);
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
-                return ec;
+                co_return ec;
             }
-            return start_transfer();
+            co_return co_await start_transfer();
         }
         else if(confirm == "n" || confirm == "N")
         {
             Packet confirm_packet;
             confirm_packet.header.type = PacketType::CONFIRM_FAILED;
             confirm_packet.header.size = 0;
-            ec = send_packet(&confirm_packet, nullptr);
+            ec = co_await send_packet(&confirm_packet, nullptr);
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
-                return ec;
+                co_return ec;
             }
-            return ec;
+            co_return ec;
         }
     }
 }
 
-boost::system::error_code Receiver::start_transfer()
+boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
 {
     std::cout << "receiver ok\n";
-    return {};
+    co_return boost::system::error_code();
 }

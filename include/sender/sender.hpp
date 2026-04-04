@@ -12,7 +12,8 @@ class Sender : public Data_transfer
         // constructor
         explicit Sender(boost::asio::io_context& context, const std::string& ip, unsigned short port, std::filesystem::path& files_to_send);
 
-        boost::system::error_code start() override;
+        boost::asio::awaitable<boost::system::error_code> 
+        start() override;
     
     private:
         struct PacketLocal
@@ -21,22 +22,27 @@ class Sender : public Data_transfer
             Packet packet; 
         };
 
-        boost::system::error_code transfer_confirmation() override;
+        boost::asio::awaitable<boost::system::error_code>
+        transfer_confirmation() override;
 
-        boost::system::error_code start_transfer() override;
+        boost::asio::awaitable<boost::system::error_code>
+        start_transfer() override;
+
+        boost::asio::awaitable<boost::system::error_code>
+        resend_packet(uint32_t seq);
+
+        boost::asio::awaitable<boost::system::error_code>
+        timeout_loop();
 
         void ack_handler(uint32_t seq);
-        void resend_packet(uint32_t seq);
         void increase_window();
         void decrease_window();
-        void timeout_loop();
 
     private:
         std::filesystem::path& files_to_send_;
         File_walker file_walker_;
 
         std::unordered_map<uint32_t, PacketLocal> in_flight_;
-        std::mutex mtx_;
         uint64_t cwnd_ = 1; // окно перегрузки
         uint64_t sshthresh_ = 16; // граница медленного старта (если меньше cwnd меньше чем sshthresh, то
                                         // cwnd увеличивается в 2 раза при increase_window, если меньше, то

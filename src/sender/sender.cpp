@@ -6,15 +6,16 @@ Sender::Sender(boost::asio::io_context& context, const std::string& ip, unsigned
 : Data_transfer(context, ip, port), files_to_send_(files_to_send), file_walker_(files_to_send_)
 {
     std::cout << "Sender constructor called\n";
-    start();
 }
 
-boost::system::error_code Sender::start()
+boost::asio::awaitable<boost::system::error_code>
+Sender::start()
 {
-    return transfer_confirmation();
+    co_return co_await transfer_confirmation();
 }
 
-boost::system::error_code Sender::transfer_confirmation()
+boost::asio::awaitable<boost::system::error_code>
+Sender::transfer_confirmation()
 {
     boost::system::error_code ec;
 
@@ -27,38 +28,37 @@ boost::system::error_code Sender::transfer_confirmation()
     Packet packet;
     packet.set_payload(&bytes_to_transfer_, sizeof(bytes_to_transfer_));
 
-    ec = send_packet(&packet, nullptr);
+    ec = co_await send_packet(&packet, nullptr);
     if(ec)
     {
         std::cerr << ec.message() << "\n";
-        return ec;
+        co_return ec;
     }
-    ec = receive_packet(&packet, nullptr);
+    ec = co_await receive_packet(&packet, nullptr);
     if(ec)
     {
         std::cerr << ec.message() << "\n";
-        return ec;
+        co_return ec;
     }
     if(packet.header.type == PacketType::CONFIRM)
-        return start_transfer();
+        co_return co_await start_transfer();
     else
     {
         std::cout << "Receiver refused files\n";
-        return ec;
+        co_return ec;
     }
 }
 
-boost::system::error_code Sender::start_transfer()
+boost::asio::awaitable<boost::system::error_code>
+Sender::start_transfer()
 {
-    socket_.non_blocking(true);
     std::cout << "sender ok\n";
 
-    return {};
+    co_return boost::system::error_code();
 }
 
 void Sender::ack_handler(uint32_t seq)
 {
-    std::unique_lock<std::mutex> lock(mtx_);
     auto it = in_flight_.find(seq);
     if(it == in_flight_.end())
         return;
@@ -66,15 +66,16 @@ void Sender::ack_handler(uint32_t seq)
     increase_window();
 }
 
-void Sender::resend_packet(uint32_t seq)
+boost::asio::awaitable<boost::system::error_code>
+Sender::resend_packet(uint32_t seq)
 {
-    std::unique_lock<std::mutex> lock(mtx_);
+    boost::system::error_code ec;
     auto it = in_flight_.find(seq);
     if(it == in_flight_.end())
-        return;
-    it->second.send_time = std::chrono::steady_clock::now();
-    send_packet(&it->second.packet, nullptr);
+        co_return ec;
     decrease_window();
+    it->second.send_time = std::chrono::steady_clock::now();
+    co_return co_await send_packet(&it->second.packet, nullptr);
 }
 
 void Sender::increase_window()
@@ -93,27 +94,27 @@ void Sender::decrease_window()
         sshthresh_ = 1;
 }
 
-void Sender::timeout_loop()
+boost::asio::awaitable<boost::system::error_code>
+Sender::timeout_loop()
 {
+    boost::system::error_code ec;
+    boost::asio::steady_timer timer(co_await boost::asio::this_coro::executor);
+
     while(true)
     {
-        std::vector<uint32_t> packets_to_resend;
+        timer.expires_after(std::chrono::milliseconds(5));
+        co_await timer.async_wait(boost::asio::use_awaitable);
+
+        auto now = std::chrono::steady_clock::now();
+
+        for(auto& [seq, packet] : in_flight_)
         {
-            std::unique_lock<std::mutex> lock(mtx_);
-            auto now_time_point = std::chrono::steady_clock::now();
-            for(auto& [seq, packet] : in_flight_)
+            if(now - packet.send_time > TIMEOUT)
             {
-                if(now_time_point - packet.send_time > TIMEOUT)
-                    packets_to_resend.push_back(seq);
+                ec = co_await resend_packet(seq);
+                if(ec)
+                    co_return ec;
             }
         }
-        for(auto seq : packets_to_resend)
-        {
-            thread_pool_.submit([this, seq]()
-            {
-                resend_packet(seq);
-            });
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(5)); // в будущем поменять, пока что это просто чтоб не грузился проц
     }
 }

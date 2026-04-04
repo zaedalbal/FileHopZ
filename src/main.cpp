@@ -42,7 +42,18 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::filesystem::path files_to_send = std::filesystem::path(std::string(argv[4], strlen(argv[4])));
-        Sender(io_context, address, port, files_to_send);
+        auto sender = std::make_shared<Sender>(io_context, address, port, files_to_send);
+        auto errc = boost::asio::co_spawn(io_context, [sender]()->boost::asio::awaitable<boost::system::error_code>
+        {
+            co_return co_await sender->start();
+        },  boost::asio::use_future);
+        io_context.run();
+        auto error = errc.get();
+        if(error)
+        {
+            std::cout << error.message() << "\n";
+            return 1;
+        }
     }
 
     else if(mode == "recv")
@@ -55,9 +66,20 @@ int main(int argc, char* argv[])
             std::cerr << "Invalid port\n";
             return 1;
         }
-        Receiver(io_context, port, out_dir);
-    }
+        auto receiver = std::make_shared<Receiver>(io_context, port, out_dir);
+        auto errc = boost::asio::co_spawn(io_context, [receiver]()->boost::asio::awaitable<boost::system::error_code>
+        {
+            co_return co_await receiver->start();
+        },  boost::asio::use_future);
+        io_context.run();
+        auto error = errc.get();
+        if(error)
+        {
+            std::cout << error.message() << "\n";
+            return 1;
+        }
 
+    }
     else
     {
         std::cerr << "Unknown mode \"" << mode << "\"\n";

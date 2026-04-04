@@ -1,7 +1,6 @@
 #pragma once
 #include <boost/asio.hpp>
 #include "packet.hpp"
-#include <utils/thread_pool.hpp>
 
 class Data_transfer
 {
@@ -112,8 +111,6 @@ class Data_transfer
         boost::asio::ip::udp::socket socket_;
 
         boost::asio::ip::udp::endpoint peer_endpoint_;
-
-        Thread_pool thread_pool_;
 
         uint64_t bytes_to_transfer_;
 };
