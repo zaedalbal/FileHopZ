@@ -15,6 +15,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start()
 
 boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmation()
 {
+/*
     boost::system::error_code ec;
     Packet packet;
     ec = co_await receive_packet(&packet, nullptr);
@@ -57,6 +58,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             co_return ec;
         }
     }
+*/
 }
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
