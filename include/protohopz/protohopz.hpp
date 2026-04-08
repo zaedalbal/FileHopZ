@@ -10,13 +10,12 @@ class ProtoHopZ
     public:
         explicit ProtoHopZ();
 
-        
-    private:
         boost::asio::awaitable<boost::system::error_code>
         send_packet(const PHZ::Packet* source);
 
         void receive_packet(PHZ::Packet* destination);
 
+    private:
         boost::asio::awaitable<boost::system::error_code>
         resend_packet(uint32_t sequense);
 
