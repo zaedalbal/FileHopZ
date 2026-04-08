@@ -1,1 +1,150 @@
 #include "protohopz/protohopz.hpp"
+
+boost::asio::awaitable<boost::system::error_code>
+ProtoHopZ::send_packet(const PHZ::Packet* source)
+{
+    boost::system::error_code ec;
+
+    auto packet = *source;
+    packet.header.sequence = sequence_counter_++;
+
+    co_await socket_.async_send_to
+    (boost::asio::buffer(&packet, sizeof(PHZ::PacketHeader) + packet.header.size),
+    peer_endpoint_, 
+    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+    if(ec)
+        co_return ec;
+    
+    in_flight_[packet.header.sequence] =
+    {std::chrono::steady_clock::now(), packet};
+
+    auto executor = co_await boost::asio::this_coro::executor;
+    // ожидание пока не придет ACK
+    while(in_flight_.contains(packet.header.sequence))
+    {
+        co_await boost::asio::post
+        (executor, boost::asio::use_awaitable);
+    }
+    
+    co_return ec;
+}
+
+void ProtoHopZ::receive_packet(PHZ::Packet* destination)
+{
+    boost::system::error_code ec;
+
+    PHZ::Packet packet;
+    if(!received_packets_queue_.empty())
+    {
+        packet = received_packets_queue_.front();
+        received_packets_queue_.pop();
+        *destination = packet;
+    }
+}
+
+boost::asio::awaitable<boost::system::error_code>
+ProtoHopZ::resend_packet(uint32_t sequense)
+{
+    boost::system::error_code ec;
+
+    auto it = in_flight_.find(sequense);
+    if(it == in_flight_.end())
+        co_return ec;
+    
+    co_await socket_.async_send_to
+    (boost::asio::buffer(&it->second.packet, sizeof(PHZ::PacketHeader) + it->second.packet.header.size),
+    peer_endpoint_, 
+    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+    it->second.send_time = std::chrono::steady_clock::now();
+
+    co_return ec;
+}
+
+boost::asio::awaitable<boost::system::error_code>
+ProtoHopZ::receive_loop()
+{
+    boost::system::error_code ec;
+    while(true)
+    {
+        PHZ::Packet packet;
+        co_await socket_.async_receive_from
+        (boost::asio::buffer(&packet, sizeof(PHZ::Packet)),
+        peer_endpoint_,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if(ec)
+            co_return ec;
+        switch(packet.header.type)
+        {
+            case PHZ::PacketType::ACK :
+            {
+                ack_handler(packet.header.sequence);
+            }
+            break;
+
+            case PHZ::PacketType::DATA :
+            {
+                co_await send_ack(packet.header.sequence);
+                if(received_packets_.contains(packet.header.sequence))
+                    continue;
+                received_packets_.insert(packet.header.sequence);
+                received_packets_queue_.push(std::move(packet));
+            }
+            break;
+        }
+    }
+}
+
+boost::asio::awaitable<boost::system::error_code>
+ProtoHopZ::timeout_loop()
+{
+    boost::system::error_code ec;
+    auto executor = co_await boost::asio::this_coro::executor;
+    boost::asio::steady_timer timer(executor);
+
+    while(true)
+    {
+        auto now = std::chrono::steady_clock::now();
+
+        for(auto& [seq, packet] : in_flight_)
+        {
+            if(now - packet.send_time > PHZ::TIMEOUT)
+            {
+                ec = co_await resend_packet(seq);
+                if(ec)
+                    co_return ec;
+            }
+        }
+
+        timer.expires_after(std::chrono::milliseconds(10));
+        co_await timer.async_wait(boost::asio::use_awaitable);
+    }
+
+    co_return ec;
+}
+
+boost::asio::awaitable<boost::system::error_code>
+ProtoHopZ::send_ack(uint32_t sequence)
+{
+    boost::system::error_code ec;
+
+    PHZ::Packet packet{};
+    packet.header.sequence = sequence;
+    packet.header.type = PHZ::PacketType::ACK;
+    packet.header.size = 0;
+
+    co_await socket_.async_send_to
+    (boost::asio::buffer(&packet, sizeof(PHZ::PacketHeader) + packet.header.size),
+    peer_endpoint_,
+    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if(ec) // проверка, если в будущем что то будет ещё добавляться
+        co_return ec;
+
+    co_return ec;
+}
+
+void ProtoHopZ::ack_handler(uint32_t sequence)
+{
+    in_flight_.erase(sequence);
+}
