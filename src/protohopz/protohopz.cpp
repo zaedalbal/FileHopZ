@@ -29,17 +29,22 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
    co_return ec;
 }
 
-void ProtoHopZ::receive_packet(PHZ::Packet* destination)
+boost::asio::awaitable<void> ProtoHopZ::receive_packet(PHZ::Packet* destination)
 {
     boost::system::error_code ec;
 
     PHZ::Packet packet;
-    if(!received_packets_queue_.empty())
+    if(received_packets_queue_.empty())
     {
-        packet = received_packets_queue_.front();
-        received_packets_queue_.pop();
-        *destination = packet;
+        auto executor = co_await boost::asio::this_coro::executor;
+        co_await boost::asio::post(executor, boost::asio::use_awaitable);
     }
+
+    packet = received_packets_queue_.front();
+    received_packets_queue_.pop();
+    *destination = packet;
+
+    co_return;
 }
 
 boost::asio::awaitable<boost::system::error_code>

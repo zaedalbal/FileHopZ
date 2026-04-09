@@ -13,7 +13,8 @@ class ProtoHopZ
         boost::asio::awaitable<boost::system::error_code>
         send_packet(const PHZ::Packet* source);
 
-        void receive_packet(PHZ::Packet* destination);
+        boost::asio::awaitable<void>
+        receive_packet(PHZ::Packet* destination);
 
     private:
         boost::asio::awaitable<boost::system::error_code>
