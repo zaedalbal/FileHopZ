@@ -4,6 +4,13 @@ boost::asio::awaitable<boost::system::error_code>
 ProtoHopZ::send_packet(const PHZ::Packet* source)
 {
     boost::system::error_code ec;
+    auto executor = co_await boost::asio::this_coro::executor;
+
+    while(in_flight_.size() > static_cast<std::size_t>(cwnd_))
+    {
+        // в будущем поменять, тк эта штука очень сильно есть CPU!!!
+        co_await boost::asio::post(executor, boost::asio::use_awaitable); 
+    }
 
     auto packet = *source;
     packet.header.sequence = sequence_counter_++;
@@ -19,15 +26,7 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     in_flight_[packet.header.sequence] =
     {std::chrono::steady_clock::now(), packet};
 
-    auto executor = co_await boost::asio::this_coro::executor;
-    // ожидание пока не придет ACK
-    while(in_flight_.contains(packet.header.sequence))
-    {
-        co_await boost::asio::post
-        (executor, boost::asio::use_awaitable);
-    }
-    
-    co_return ec;
+   co_return ec;
 }
 
 void ProtoHopZ::receive_packet(PHZ::Packet* destination)
@@ -111,6 +110,9 @@ ProtoHopZ::timeout_loop()
         {
             if(now - packet.send_time > PHZ::TIMEOUT)
             {
+                sshthresh_ = cwnd_ / 2.0;
+                cwnd_ = 1.0;
+
                 ec = co_await resend_packet(seq);
                 if(ec)
                     co_return ec;
@@ -147,4 +149,9 @@ ProtoHopZ::send_ack(uint32_t sequence)
 void ProtoHopZ::ack_handler(uint32_t sequence)
 {
     in_flight_.erase(sequence);
+
+    if(cwnd_ < sshthresh_)
+        cwnd_ *= 2;
+    else
+        cwnd_ += 1.0 / cwnd_;
 }
