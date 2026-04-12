@@ -11,6 +11,10 @@ class ProtoHopZ
         explicit ProtoHopZ
         (boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint);
 
+        void start(); // метод для запуска receive_loop и timeout_loop
+
+        void stop(); // метод для остановки receive_loop и timeout_loop
+
         boost::asio::awaitable<boost::system::error_code>
         send_packet(const PHZ::Packet* source);
 
@@ -35,6 +39,8 @@ class ProtoHopZ
     private:
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint peer_endpoint_;
+
+        std::atomic<bool> running_;
 
         uint32_t sequence_counter_ = 0;
         std::queue<PHZ::Packet> received_packets_queue_;

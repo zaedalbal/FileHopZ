@@ -5,6 +5,22 @@ ProtoHopZ::ProtoHopZ
 : socket_(std::move(socket)), peer_endpoint_(std::move(peer_endpoint))
 {}
 
+void ProtoHopZ::start()
+{
+    auto executor = socket_.get_executor();
+    running_ = true;
+
+    boost::asio::co_spawn(executor, receive_loop(), boost::asio::detached);
+    boost::asio::co_spawn(executor, timeout_loop(), boost::asio::detached);
+}
+
+void ProtoHopZ::stop()
+{
+    boost::system::error_code ec;
+    running_ = false;
+    socket_.cancel(ec);
+}
+
 boost::asio::awaitable<boost::system::error_code>
 ProtoHopZ::send_packet(const PHZ::Packet* source)
 {
@@ -36,10 +52,8 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
 
 boost::asio::awaitable<void> ProtoHopZ::receive_packet(PHZ::Packet* destination)
 {
-    boost::system::error_code ec;
-
     PHZ::Packet packet;
-    if(received_packets_queue_.empty())
+    while(received_packets_queue_.empty())
     {
         auto executor = co_await boost::asio::this_coro::executor;
         co_await boost::asio::post(executor, boost::asio::use_awaitable);
@@ -75,7 +89,7 @@ boost::asio::awaitable<boost::system::error_code>
 ProtoHopZ::receive_loop()
 {
     boost::system::error_code ec;
-    while(true)
+    while(running_)
     {
         PHZ::Packet packet;
         co_await socket_.async_receive_from
@@ -112,7 +126,7 @@ ProtoHopZ::timeout_loop()
     auto executor = co_await boost::asio::this_coro::executor;
     boost::asio::steady_timer timer(executor);
 
-    while(true)
+    while(running_)
     {
         auto now = std::chrono::steady_clock::now();
 
