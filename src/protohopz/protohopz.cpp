@@ -1,5 +1,11 @@
 #include "protohopz/protohopz.hpp"
 
+ProtoHopZ::ProtoHopZ
+(boost::asio::io_context& context, const std::string peer_adress, short peer_port)
+: context_(context), socket_(context, boost::asio::ip::udp::v4()),
+peer_endpoint_(boost::asio::ip::address::from_string(peer_adress), peer_port)
+{}
+
 boost::asio::awaitable<boost::system::error_code>
 ProtoHopZ::send_packet(const PHZ::Packet* source)
 {
@@ -8,7 +14,7 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
 
     while(in_flight_.size() > static_cast<std::size_t>(cwnd_))
     {
-        // в будущем поменять, тк эта штука очень сильно есть CPU!!!
+        // в будущем поменять, тк эта штука очень сильно ест CPU!!!
         co_await boost::asio::post(executor, boost::asio::use_awaitable); 
     }
 

@@ -8,7 +8,8 @@
 class ProtoHopZ
 {
     public:
-        explicit ProtoHopZ();
+        explicit ProtoHopZ
+        (boost::asio::io_context& context, const std::string peer_adress, short peer_port);
 
         boost::asio::awaitable<boost::system::error_code>
         send_packet(const PHZ::Packet* source);
@@ -32,6 +33,7 @@ class ProtoHopZ
         void ack_handler(uint32_t sequence);
 
     private:
+        boost::asio::io_context& context_;
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint peer_endpoint_;
 
