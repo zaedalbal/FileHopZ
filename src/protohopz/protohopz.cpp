@@ -1,9 +1,8 @@
 #include "protohopz/protohopz.hpp"
 
 ProtoHopZ::ProtoHopZ
-(boost::asio::io_context& context, const std::string peer_adress, short peer_port)
-: context_(context), socket_(context, boost::asio::ip::udp::v4()),
-peer_endpoint_(boost::asio::ip::address::from_string(peer_adress), peer_port)
+(boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
+: socket_(std::move(socket)), peer_endpoint_(std::move(peer_endpoint))
 {}
 
 boost::asio::awaitable<boost::system::error_code>
