@@ -68,7 +68,6 @@ boost::system::error_code File_builder::handle_packet(const Packet& packet)
 {
     switch (packet.header.type)
     {
-        case PacketType::KEEP_ALIVE:
         case PacketType::CONFIRM:
         case PacketType::CONFIRM_FAILED:
 
@@ -91,7 +90,6 @@ boost::system::error_code File_builder::handle_packet(const Packet& packet)
             return write(packet.data, packet.header.size, packet.header.file_id);
         }
         case PacketType::END_FILE:
-        case PacketType::END_TRANSFER:
 
         default:
         {

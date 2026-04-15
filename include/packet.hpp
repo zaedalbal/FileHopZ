@@ -1,13 +1,11 @@
 #pragma once
 #include <cstdint>
+#include "protohopz/protohopz_packet.hpp"
 
 constexpr std::size_t PACKET_SIZE = 1024;
-constexpr std::chrono::milliseconds TIMEOUT(128); // в миллисекундах
 
 enum PacketType : uint8_t
 {
-    KEEP_ALIVE, // проверка соеденения
-
     CONFIRM, // подтверждение что receiver готов принять файл
     CONFIRM_FAILED, // оповещение отправителя, если пользователь отказался принимать файл
 
@@ -32,7 +30,6 @@ struct PacketHeader
     PacketFlags flags;
     uint16_t size;
     uint32_t file_id;
-    uint32_t sequence;
 };
 
 struct Packet
@@ -57,9 +54,3 @@ struct Packet
 };
 
 #pragma pack(pop) // восстановление выравнивания
-
-struct PacketLocal
-{
-    std::chrono::steady_clock::time_point send_time;
-    Packet packet;
-};
