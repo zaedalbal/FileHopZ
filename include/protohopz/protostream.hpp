@@ -1,6 +1,7 @@
 #pragma once
 #include "protohopz.hpp"
 #include <memory>
+#include <expected>
 
 class ProtoStream
 {
@@ -29,14 +30,18 @@ class ProtoStream
         boost::asio::awaitable<boost::system::error_code>
         send(char* data, std::size_t size);
 
-        Chunk receive();
+        boost::asio::awaitable<std::expected<Chunk, boost::system::error_code>>
+        receive();
 
         void close();
+
+    private:
+        boost::asio::awaitable<void> receive_chunks_loop();
 
     private:
         ProtoHopZ transport_;
 
         std::deque<Chunk> ready_chunks_;
 
-        bool loops_started = false;
+        bool transport_loops_started = false;
 };
