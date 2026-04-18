@@ -56,6 +56,7 @@ boost::asio::awaitable<void> ProtoHopZ::receive_packet(PHZ::Packet* destination)
     while(received_packets_queue_.empty())
     {
         auto executor = co_await boost::asio::this_coro::executor;
+        // в будущем поменять, тк эта штука очень сильно ест CPU!!!
         co_await boost::asio::post(executor, boost::asio::use_awaitable);
     }
 

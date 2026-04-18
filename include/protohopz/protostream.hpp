@@ -14,6 +14,8 @@ class ProtoStream
                 std::memcpy(data_.get(), data, size_);
             }
 
+            Chunk(Chunk&&) = default;
+
             Chunk(const Chunk&) = delete;
             Chunk& operator=(const Chunk&) = delete;
 
@@ -30,8 +32,7 @@ class ProtoStream
         boost::asio::awaitable<boost::system::error_code>
         send(char* data, std::size_t size);
 
-        boost::asio::awaitable<std::expected<Chunk, boost::system::error_code>>
-        receive();
+        boost::asio::awaitable<Chunk> receive();
 
         void close();
 
@@ -39,9 +40,12 @@ class ProtoStream
         boost::asio::awaitable<void> receive_chunks_loop();
 
     private:
+        const boost::asio::any_io_executor& executor_;
+
         ProtoHopZ transport_;
 
         std::deque<Chunk> ready_chunks_;
 
-        bool transport_loops_started = false;
+        bool transport_loops_running_ = false;
+        bool receive_chunks_loop_running_ = false;
 };
