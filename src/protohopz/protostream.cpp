@@ -9,6 +9,8 @@ ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::u
 boost::asio::awaitable<boost::system::error_code>
 ProtoStream::send(char* data, std::size_t size)
 {
+    if(!transport_loops_running_)
+        start_loops();
     if(size > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
         co_return boost::system::errc::make_error_code(boost::system::errc::message_size);
     
@@ -24,12 +26,8 @@ boost::asio::awaitable<ProtoStream::Chunk>
 ProtoStream::receive()
 {
     if(!transport_loops_running_)
-    {
-        transport_.start();
-        boost::asio::co_spawn(executor_, receive_chunks_loop(), boost::asio::detached);
-        transport_loops_running_ = true;
-        receive_chunks_loop_running_ = true;
-    }
+        start_loops();
+
     auto executor = co_await boost::asio::this_coro::executor;
 
     while(ready_chunks_.empty())
@@ -48,14 +46,24 @@ void ProtoStream::close()
     receive_chunks_loop_running_ = false;
 }
 
+void ProtoStream::start_loops()
+{
+        transport_loops_running_ = true;
+        transport_.start();
+
+        receive_chunks_loop_running_ = true;
+        boost::asio::co_spawn(executor_, receive_chunks_loop(), boost::asio::detached);
+}
+
 boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
 {
+    // в будущем добавить контроль размера буфера с пакетами
+
     boost::system::error_code ec;
-    uint32_t expected_sequence = 0;
+    std::map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
+    decltype(PHZ::PacketHeader::sequence) expected_sequence = 0;
     while(receive_chunks_loop_running_)
     {
-        static std::map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
-        
         PHZ::Packet packet;
         co_await transport_.receive_packet(&packet);
 
@@ -69,10 +77,17 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
         if(packets_buffer.contains(packet.header.sequence))
             continue; // скип дубликатов
         
-        packets_buffer.emplace(packet.header.sequence, packet);
-        while(packets_buffer.contains(expected_sequence))
+        packets_buffer.emplace(packet.header.sequence, std::move(packet));
+
+        while(receive_chunks_loop_running_)
         {
-            ready_chunks_.push_back(ProtoStream::Chunk(packet.data, packet.header.size));
+            auto it = packets_buffer.find(expected_sequence);
+            if(it == packets_buffer.end())
+                break;
+            
+            ready_chunks_.push_back(ProtoStream::Chunk(it->second.data, it->second.header.size));
+            packets_buffer.erase(it);
+            ++expected_sequence;
         }
     }
 }

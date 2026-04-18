@@ -1,4 +1,5 @@
 #include "protohopz/protohopz.hpp"
+#include <iostream>
 
 ProtoHopZ::ProtoHopZ
 (boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
@@ -82,6 +83,8 @@ ProtoHopZ::resend_packet(uint32_t sequense)
     boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
     it->second.send_time = std::chrono::steady_clock::now();
+
+    std::cout << "resend packet in protohopz\n";
 
     co_return ec;
 }
