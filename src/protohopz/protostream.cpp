@@ -40,8 +40,14 @@ ProtoStream::receive()
     co_return chunk;
 }
 
-void ProtoStream::close()
+boost::asio::awaitable<void> ProtoStream::close()
 {
+    PHZ::Packet packet;
+    packet.header.type = PHZ::PacketType::END_TRANSFER;
+    packet.header.size = 0;
+    
+    co_await transport_.send_packet(&packet);
+
     transport_.stop();
     receive_chunks_loop_running_ = false;
 }

@@ -34,7 +34,7 @@ class ProtoStream
 
         boost::asio::awaitable<Chunk> receive();
 
-        void close();
+        boost::asio::awaitable<void> close();
 
     private:
         void start_loops();

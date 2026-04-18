@@ -17,6 +17,9 @@ void ProtoHopZ::start()
 
 void ProtoHopZ::stop()
 {
+    // в будущем переписать stop() так, чтобы отправлялись все пакеты из in_flight_,
+    // и только после этого все завершалось
+    
     boost::system::error_code ec;
     running_ = false;
     socket_.cancel(ec);
