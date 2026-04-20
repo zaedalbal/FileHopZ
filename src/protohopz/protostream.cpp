@@ -63,16 +63,27 @@ void ProtoStream::start_loops()
 
 boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
 {
-    // в будущем добавить контроль размера буфера с пакетами
+    constexpr int BUFFER_SIZE = 1024;
+    constexpr int SEQUENCE_WINDOW_SIZE = 4096;
 
     boost::system::error_code ec;
-    std::map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
+    std::unordered_map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
     decltype(PHZ::PacketHeader::sequence) expected_sequence = 0;
     while(receive_chunks_loop_running_)
     {
         PHZ::Packet packet;
         co_await transport_.receive_packet(&packet);
 
+        if(packet.header.sequence < expected_sequence)
+            continue;
+
+        if(packet.header.sequence > expected_sequence + SEQUENCE_WINDOW_SIZE)
+        {
+            close();
+            std::cerr <<  "Out of sequnce window: possible mailicious input\n";
+            co_return;
+        }
+ 
         if(packet.header.type != PHZ::PacketType::DATA)
         {
             // в будущем сделать обработчик пакетов
@@ -82,6 +93,13 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
 
         if(packets_buffer.contains(packet.header.sequence))
             continue; // скип дубликатов
+
+        if(packets_buffer.size() > BUFFER_SIZE)
+        {
+            close();
+            std::cerr <<  "Buffer overflow: possible malicious input\n";
+            co_return;
+        }
         
         packets_buffer.emplace(packet.header.sequence, std::move(packet));
 
