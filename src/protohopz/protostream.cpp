@@ -79,7 +79,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
 
         if(packet.header.sequence > expected_sequence + SEQUENCE_WINDOW_SIZE)
         {
-            close();
+            co_await close();
             std::cerr <<  "Out of sequnce window: possible mailicious input\n";
             co_return;
         }
@@ -96,7 +96,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
 
         if(packets_buffer.size() > BUFFER_SIZE)
         {
-            close();
+            co_await close();
             std::cerr <<  "Buffer overflow: possible malicious input\n";
             co_return;
         }
