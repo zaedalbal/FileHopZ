@@ -12,7 +12,13 @@ file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/
 
 add_executable(filehopz ${PROJECT_SOURCES})
 
-target_sources(filehopz PRIVATE ${PROJECT_SOURCES})
+target_compile_options(filehopz PRIVATE
+    -Wall
+    -Wextra
+    -Wpedantic
+    $<$<CONFIG:Debug>: -O0 -g>
+    $<$<CONFIG:Release>: -O2>
+)
 
 target_include_directories(filehopz PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
