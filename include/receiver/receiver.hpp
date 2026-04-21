@@ -1,9 +1,9 @@
 #pragma once
-#include "data_transfer.hpp"
+#include "file_transfer.hpp"
 #include "utils/file_builder.hpp"
 #include <boost/asio.hpp>
 
-class Receiver : public Data_transfer
+class Receiver : public File_transfer
 {
     public:
         explicit Receiver(boost::asio::io_context& context, unsigned short port, std::filesystem::path& output_file);

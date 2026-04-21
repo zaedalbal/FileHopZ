@@ -3,7 +3,7 @@
 #include <iostream>
 
 Receiver::Receiver(boost::asio::io_context& context, unsigned short port, std::filesystem::path& output_directory)
-: Data_transfer(context, port), output_directory_(output_directory), file_builder_(output_directory_)
+: File_transfer(context, port), output_directory_(output_directory), file_builder_(output_directory_)
 {
     std::cout << "Receiver constructor called\n";
 }

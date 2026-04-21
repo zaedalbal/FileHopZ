@@ -1,7 +1,7 @@
-#include "data_transfer.hpp"
+#include "file_transfer.hpp"
 #include <iostream>
 
-boost::system::error_code Data_transfer::print_progress(std::size_t bytes_transferred)
+boost::system::error_code File_transfer::print_progress(std::size_t bytes_transferred)
 {
     static std::size_t total_bytes_transferred = 0;
     static uint8_t last_progress = 0;

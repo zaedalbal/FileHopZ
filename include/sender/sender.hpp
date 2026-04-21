@@ -1,12 +1,12 @@
 #pragma once
-#include "data_transfer.hpp"
+#include "file_transfer.hpp"
 #include "utils/file_walker.hpp"
 #include <fstream>
 #include <boost/asio.hpp>
 #include <unordered_map>
 #include <chrono>
 
-class Sender : public Data_transfer
+class Sender : public File_transfer
 {
     public:
         // constructor

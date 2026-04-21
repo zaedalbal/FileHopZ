@@ -2,20 +2,20 @@
 #include <boost/asio.hpp>
 #include "packet.hpp"
 
-class Data_transfer
+class File_transfer
 {
     public:
-        explicit Data_transfer
+        explicit File_transfer
         (boost::asio::io_context& context, unsigned short port)
         : context_(context)
         {}
 
-        explicit Data_transfer
+        explicit File_transfer
         (boost::asio::io_context& context, const std::string& peer_adress, unsigned short peer_port)
         : context_(context)
         {}
 
-        virtual ~Data_transfer() = default;
+        virtual ~File_transfer() = default;
 
         virtual boost::asio::awaitable<boost::system::error_code> 
         start() = 0;
