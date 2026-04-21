@@ -23,6 +23,8 @@ class ProtoStream
             std::unique_ptr<char[]> data_;
         };
 
+        explicit ProtoStream(boost::asio::ip::udp::socket socket);
+
         explicit ProtoStream
         (boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint);
 

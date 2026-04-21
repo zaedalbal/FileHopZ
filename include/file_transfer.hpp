@@ -1,19 +1,18 @@
 #pragma once
 #include <boost/asio.hpp>
+#include "protohopz/protostream.hpp"
 #include "packet.hpp"
 
 class File_transfer
 {
     public:
+        // конструктор для Receiver
         explicit File_transfer
-        (boost::asio::io_context& context, unsigned short port)
-        : context_(context)
-        {}
+        (boost::asio::io_context& context, unsigned short port);
 
+        // конструктор для Sender
         explicit File_transfer
-        (boost::asio::io_context& context, const std::string& peer_adress, unsigned short peer_port)
-        : context_(context)
-        {}
+        (boost::asio::io_context& context, const std::string& peer_adress, unsigned short peer_port);
 
         virtual ~File_transfer() = default;
 
@@ -33,6 +32,8 @@ class File_transfer
 
     protected:
         boost::asio::io_context& context_;
+
+        ProtoStream protostream_;
 
         uint64_t bytes_to_transfer_;
 };

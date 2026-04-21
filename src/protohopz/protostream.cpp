@@ -2,8 +2,12 @@
 #include <iostream>
 #include <map>
 
+ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket)
+: executor_(socket.get_executor()), transport_(std::move(socket), std::move(boost::asio::ip::udp::endpoint()))
+{}
+
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
-: executor_(socket.get_executor()), transport_(std::move(socket), peer_endpoint)
+: executor_(socket.get_executor()), transport_(std::move(socket), std::move(peer_endpoint))
 {}
 
 boost::asio::awaitable<boost::system::error_code>
