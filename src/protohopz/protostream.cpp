@@ -11,15 +11,15 @@ ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::u
 {}
 
 boost::asio::awaitable<boost::system::error_code>
-ProtoStream::send(std::span<const std::byte> data, std::size_t size)
+ProtoStream::send(std::span<const std::byte> data)
 {
     if(!transport_loops_running_)
         start_loops();
-    if(size > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
+    if(data.size() > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
         co_return boost::system::errc::make_error_code(boost::system::errc::message_size);
     
     PHZ::Packet packet;
-    packet.header.size = size;
+    packet.header.size = data.size();
     packet.header.type = PHZ::PacketType::DATA;
     std::memcpy(packet.data, data.data(), packet.header.size);
 
