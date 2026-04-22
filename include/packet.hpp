@@ -2,7 +2,7 @@
 #include <cstdint>
 #include "protohopz/protohopz_packet.hpp"
 
-constexpr std::size_t PACKET_SIZE = 1024;
+constexpr std::size_t PACKET_SIZE = PHZ::PACKET_SIZE - sizeof(PHZ::Packet::header);
 
 enum PacketType : uint8_t
 {

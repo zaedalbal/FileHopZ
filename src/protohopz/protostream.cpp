@@ -3,7 +3,7 @@
 #include <map>
 
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket)
-: executor_(socket.get_executor()), transport_(std::move(socket), std::move(boost::asio::ip::udp::endpoint()))
+: executor_(socket.get_executor()), transport_(std::move(socket), boost::asio::ip::udp::endpoint())
 {}
 
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
@@ -11,7 +11,7 @@ ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::u
 {}
 
 boost::asio::awaitable<boost::system::error_code>
-ProtoStream::send(char* data, std::size_t size)
+ProtoStream::send(std::span<const std::byte> data, std::size_t size)
 {
     if(!transport_loops_running_)
         start_loops();
@@ -21,7 +21,7 @@ ProtoStream::send(char* data, std::size_t size)
     PHZ::Packet packet;
     packet.header.size = size;
     packet.header.type = PHZ::PacketType::DATA;
-    std::memcpy(packet.data, data, packet.header.size);
+    std::memcpy(packet.data, data.data(), packet.header.size);
 
     co_return co_await transport_.send_packet(&packet);
 }

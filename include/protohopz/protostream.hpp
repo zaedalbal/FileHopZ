@@ -32,7 +32,7 @@ class ProtoStream
         ProtoStream& operator=(const ProtoStream&) = delete;
 
         boost::asio::awaitable<boost::system::error_code>
-        send(char* data, std::size_t size);
+        send(std::span<const std::byte> data, std::size_t size);
 
         boost::asio::awaitable<Chunk> receive();
 
