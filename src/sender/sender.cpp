@@ -17,7 +17,6 @@ Sender::start()
 boost::asio::awaitable<boost::system::error_code>
 Sender::transfer_confirmation()
 {
-/*
     boost::system::error_code ec;
 
     while(file_walker_.next())
@@ -29,18 +28,16 @@ Sender::transfer_confirmation()
     Packet packet;
     packet.set_payload(&bytes_to_transfer_, sizeof(bytes_to_transfer_));
 
-    ec = co_await send_packet(&packet, nullptr);
+    ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
     if(ec)
     {
         std::cerr << ec.message() << "\n";
         co_return ec;
     }
-    ec = co_await receive_packet(&packet, nullptr);
-    if(ec)
-    {
-        std::cerr << ec.message() << "\n";
-        co_return ec;
-    }
+    auto chunk = co_await protostream_.receive();
+
+    std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
+
     if(packet.header.type == PacketType::CONFIRM)
         co_return co_await start_transfer();
     else
@@ -48,7 +45,6 @@ Sender::transfer_confirmation()
         std::cout << "Receiver refused files\n";
         co_return ec;
     }
-*/
 }
 
 boost::asio::awaitable<boost::system::error_code>

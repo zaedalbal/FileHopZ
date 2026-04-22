@@ -15,16 +15,10 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start()
 
 boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmation()
 {
-/*
     boost::system::error_code ec;
-    Packet packet;
-    ec = co_await receive_packet(&packet, nullptr);
-    if(ec)
-    {
-        std::cerr << ec.message() << "\n";
-        co_return ec;
-    }
-    std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
+    auto chunk = co_await protostream_.receive();
+
+    std::memcpy(&bytes_to_transfer_, chunk.data_.get(), sizeof(uint64_t));
     std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
     std::string confirm;
     while(true)
@@ -36,7 +30,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             Packet confirm_packet;
             confirm_packet.header.type = PacketType::CONFIRM;
             confirm_packet.header.size = 0;
-            ec = co_await send_packet(&confirm_packet, nullptr);
+            ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
@@ -49,7 +43,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             Packet confirm_packet;
             confirm_packet.header.type = PacketType::CONFIRM_FAILED;
             confirm_packet.header.size = 0;
-            ec = co_await send_packet(&confirm_packet, nullptr);
+            ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
@@ -58,7 +52,6 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             co_return ec;
         }
     }
-*/
 }
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
