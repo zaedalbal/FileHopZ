@@ -24,7 +24,13 @@ class Sender : public File_transfer
         boost::asio::awaitable<boost::system::error_code>
         start_transfer() override;
 
+        boost::asio::awaitable<boost::system::error_code>
+        path_handler(const std::filesystem::path& file);
+
     private:
+        uint32_t file_id_counter_ = 0;
+
         std::filesystem::path& files_to_send_;
+
         File_walker file_walker_;
 };

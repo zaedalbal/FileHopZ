@@ -52,5 +52,80 @@ Sender::start_transfer()
 {
     std::cout << "sender ok\n";
 
+    while(file_walker_.next())
+    {
+        auto ec = co_await path_handler(file_walker_.relative_path());
+        if(ec)
+            co_return ec;
+    }
+    co_return boost::system::error_code();
+}
+
+boost::asio::awaitable<boost::system::error_code>
+Sender::path_handler(const std::filesystem::path& file)
+{
+    auto status = std::filesystem::status(file);
+    switch(status.type())
+    {
+       case std::filesystem::file_type::directory:
+       {
+            auto file_id = file_id_counter_++;
+            auto string_path = file.string();
+
+            Packet packet;
+            packet.header.file_id = file_id;
+            packet.header.type = PacketType::CREATE_DIRECTORY;
+            packet.set_payload(string_path.data(), string_path.size());
+
+            auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
+            if(ec)
+                co_return ec;
+       } break;
+
+       case std::filesystem::file_type::regular:
+       {
+            std::ifstream file_stream(file, std::ios::binary);
+            if(!file_stream)
+                co_return boost::system::errc::make_error_code
+                (boost::system::errc::file_exists);
+            auto file_id = file_id_counter_++;
+            auto string_path = file.string();
+            std::size_t bytes_read = 0;
+
+            do
+            {
+                Packet packet;
+                packet.header.file_id = file_id;
+                packet.header.type = PacketType::FILE_DATA;
+                
+                file_stream.read(packet.data, PACKET_SIZE);
+                bytes_read = file_stream.gcount();
+                packet.header.size = bytes_read;
+
+                auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
+                if(ec)
+                    co_return ec;
+
+            } while(bytes_read == PACKET_SIZE);
+
+            Packet packet;
+            packet.header.file_id = file_id;
+            packet.header.size = 0;
+            packet.header.type = PacketType::END_FILE;
+            
+            auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
+            if(ec)
+                co_return ec;
+       } break;
+
+       default:
+       {
+            std::cerr << "unknown file type\n";
+
+            co_return boost::system::errc::make_error_code
+            (boost::system::errc::bad_file_descriptor);
+       }
+    }
+
     co_return boost::system::error_code();
 }
