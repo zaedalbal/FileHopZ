@@ -19,6 +19,8 @@ class File_walker
 
         bool single_file_ = false;
 
+        bool single_file_returned_ = false;
+
         std::filesystem::recursive_directory_iterator it_;
 
         std::filesystem::recursive_directory_iterator end_;
