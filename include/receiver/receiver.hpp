@@ -17,8 +17,12 @@ class Receiver : public File_transfer
 
         boost::asio::awaitable<boost::system::error_code>
         start_transfer() override;
+
+        boost::system::error_code handle_packet(Packet packet);
     
     private:
+        bool end_transfer_flag_ = false;
+
         std::filesystem::path& output_directory_;
 
         File_builder file_builder_;
