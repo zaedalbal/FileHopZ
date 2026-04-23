@@ -26,8 +26,6 @@ bool File_walker::next()
     {
         const auto& entry = *it_;
         ++it_;
-        if(!entry.is_regular_file())
-            continue;
         current_ = entry.path();
         return true;
     }
