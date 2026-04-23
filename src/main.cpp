@@ -41,7 +41,15 @@ int main(int argc, char* argv[])
             std::cerr << "Invalid port\n";
             return 1;
         }
+
         std::filesystem::path files_to_send = std::filesystem::path(std::string(argv[4], strlen(argv[4])));
+        if(!std::filesystem::exists(files_to_send))
+        {
+            std::cout << boost::system::errc::make_error_code(boost::system::errc::no_such_file_or_directory)
+            .message() << "\n";
+            return 1;
+        }
+
         auto sender = std::make_shared<Sender>(io_context, address, port, files_to_send);
         auto errc = boost::asio::co_spawn(io_context, [sender]()->boost::asio::awaitable<boost::system::error_code>
         {
