@@ -26,7 +26,11 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
     boost::system::error_code ec;
     auto chunk = co_await protostream_.receive();
 
-    std::memcpy(&bytes_to_transfer_, chunk.data_.get(), sizeof(uint64_t));
+    Packet packet;
+
+    std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
+    std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
+    
     std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
     std::string confirm;
     while(true)

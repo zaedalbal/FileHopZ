@@ -71,15 +71,13 @@ std::filesystem::path File_walker::relative_path()
 
 void File_walker::reset()
 {
-    if(std::filesystem::is_regular_file(root_))
+    if(single_file_)
     {
-        single_file_ = true;
+        single_file_returned_ = false;
         current_ = root_;
-        it_ = std::filesystem::recursive_directory_iterator();
     }
     else
     {
-        single_file_ = true;
         it_ = std::filesystem::recursive_directory_iterator(root_, std::filesystem::directory_options::skip_permission_denied);
     }
 }

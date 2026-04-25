@@ -21,7 +21,8 @@ Sender::transfer_confirmation()
 
     while(file_walker_.next())
     {
-        bytes_to_transfer_ += std::filesystem::file_size(file_walker_.current_path());
+        if(std::filesystem::is_regular_file(file_walker_.current_path()))
+            bytes_to_transfer_ += std::filesystem::file_size(file_walker_.current_path());
     }
     file_walker_.reset();
     
@@ -54,7 +55,7 @@ Sender::start_transfer()
 
     while(file_walker_.next())
     {
-        auto ec = co_await path_handler(file_walker_.relative_path());
+        auto ec = co_await path_handler(file_walker_.current_path());
         if(ec)
             co_return ec;
     }
