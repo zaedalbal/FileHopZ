@@ -30,7 +30,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
 
     std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
-    
+
     std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
     std::string confirm;
     while(true)
@@ -103,7 +103,7 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
 
         case PacketType::FILE_DATA:
         {
-            if(bytes_to_transfer_ > packet.get_payload_size())
+            if(bytes_to_transfer_ <= packet.get_payload_size())
             {
                 auto ec =
                 file_builder_.write(packet.get_payload(), packet.get_payload_size(), packet.header.file_id);
@@ -115,7 +115,8 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
             else
             {
                 std::cerr << 
-                "Sender is attempting to send more data than agreed upon: possible malicious input\n";
+                "Sender is attempting to send more data than agreed upon: possible malicious input\n"
+                << packet.get_payload_size();
 
                 return boost::system::errc::make_error_code(boost::system::errc::file_too_large);
             }

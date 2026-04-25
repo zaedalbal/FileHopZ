@@ -93,6 +93,14 @@ Sender::path_handler(const std::filesystem::path& file)
             auto string_path = file.string();
             std::size_t bytes_read = 0;
 
+            Packet packet_create_file;
+            auto relative_path = file_walker_.relative_path().string();
+            packet_create_file.set_payload(relative_path.data(), relative_path.size());
+            packet_create_file.header.type = PacketType::CREATE_FILE;
+            auto error = co_await protostream_.send(std::as_bytes(std::span{&packet_create_file, 1}));
+            if(error)
+                co_return error;
+
             do
             {
                 Packet packet;
