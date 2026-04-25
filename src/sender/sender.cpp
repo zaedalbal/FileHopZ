@@ -4,9 +4,7 @@
 
 Sender::Sender(boost::asio::io_context& context, const std::string& ip, unsigned short port, std::filesystem::path& files_to_send)
 : File_transfer(context, ip, port), files_to_send_(files_to_send), file_walker_(files_to_send_)
-{
-    std::cout << "Sender constructor called\n";
-}
+{}
 
 boost::asio::awaitable<boost::system::error_code>
 Sender::start()

@@ -87,8 +87,6 @@ ProtoHopZ::resend_packet(uint32_t sequense)
 
     it->second.send_time = std::chrono::steady_clock::now();
 
-    std::cout << "resend packet in protohopz\n";
-
     co_return ec;
 }
 
