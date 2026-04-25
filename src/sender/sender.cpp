@@ -59,6 +59,16 @@ Sender::start_transfer()
         if(ec)
             co_return ec;
     }
+
+    Packet end_transfer_packet;
+    end_transfer_packet.header.type = PacketType::END_TRANSFER;
+    end_transfer_packet.header.size = 0;
+    auto ec = co_await protostream_.send(std::as_bytes(std::span{&end_transfer_packet, 1}));
+    if(ec)
+        co_return ec;
+
+    co_await protostream_.close();
+    std::cout << "exiting\n";
     co_return boost::system::error_code();
 }
 
@@ -97,6 +107,7 @@ Sender::path_handler(const std::filesystem::path& file)
             auto relative_path = file_walker_.relative_path().string();
             packet_create_file.set_payload(relative_path.data(), relative_path.size());
             packet_create_file.header.type = PacketType::CREATE_FILE;
+            packet_create_file.header.file_id = file_id;
             auto error = co_await protostream_.send(std::as_bytes(std::span{&packet_create_file, 1}));
             if(error)
                 co_return error;

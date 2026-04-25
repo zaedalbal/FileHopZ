@@ -103,12 +103,15 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
 
         case PacketType::FILE_DATA:
         {
-            if(bytes_to_transfer_ <= packet.get_payload_size())
+            if(bytes_to_transfer_ >= packet.get_payload_size())
             {
                 auto ec =
                 file_builder_.write(packet.get_payload(), packet.get_payload_size(), packet.header.file_id);
                 if(ec)
+                {
+                    std::cerr << "ec: " << ec.what() << "\n";
                     return ec;
+                }
 
                 bytes_to_transfer_ -= packet.get_payload_size();
             }
@@ -116,7 +119,8 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
             {
                 std::cerr << 
                 "Sender is attempting to send more data than agreed upon: possible malicious input\n"
-                << packet.get_payload_size();
+                << "bytes_to_transfer_ = " << bytes_to_transfer_ << "\n"
+                << "bytes received in last packet = " << packet.get_payload_size() << "\n";
 
                 return boost::system::errc::make_error_code(boost::system::errc::file_too_large);
             }
