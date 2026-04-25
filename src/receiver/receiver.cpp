@@ -18,7 +18,17 @@ Receiver::Receiver(boost::asio::io_context& context, unsigned short port, std::f
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start()
 {
-    co_return co_await transfer_confirmation();
+    auto ec = co_await transfer_confirmation();
+
+    if(ec)
+        std::cerr << ec.what() << "\n";
+    
+    // Завершение контекста
+    context_.stop();
+    // В будущем переписать protohopz и protostream для самостоятельного завершения io_context,
+    // на данный момент приходится делать context_.stop()
+
+    co_return ec;
 }
 
 boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmation()

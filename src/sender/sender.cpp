@@ -11,7 +11,16 @@ Sender::Sender(boost::asio::io_context& context, const std::string& ip, unsigned
 boost::asio::awaitable<boost::system::error_code>
 Sender::start()
 {
-    co_return co_await transfer_confirmation();
+    auto ec = co_await transfer_confirmation();
+    if(ec)
+        std::cerr << ec.what() << "\n";
+    
+    // Завершение контекста
+    context_.stop();
+    // В будущем переписать protohopz и protostream для самостоятельного завершения io_context,
+    // на данный момент приходится делать context_.stop()
+
+    co_return ec;
 }
 
 boost::asio::awaitable<boost::system::error_code>
@@ -51,8 +60,6 @@ Sender::transfer_confirmation()
 boost::asio::awaitable<boost::system::error_code>
 Sender::start_transfer()
 {
-    std::cout << "sender ok\n";
-
     while(file_walker_.next())
     {
         auto ec = co_await path_handler(file_walker_.current_path());
@@ -68,7 +75,6 @@ Sender::start_transfer()
         co_return ec;
 
     co_await protostream_.close();
-    std::cout << "exiting\n";
     co_return boost::system::error_code();
 }
 
