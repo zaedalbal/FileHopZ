@@ -52,9 +52,13 @@ boost::system::error_code File_builder::write(const char* data, std::size_t size
     auto it = open_files_.find(file_id);
     if(it == open_files_.end())
         return boost::system::errc::make_error_code(boost::system::errc::bad_file_descriptor);
-    it->second->write(data, static_cast<std::streamsize>(size)); // static_cast на будущее, если будет передаваться большие объемы данных
+
+    // static_cast на будущее, если будет передаваться большие объемы данных
+    it->second->write(data, static_cast<std::streamsize>(size));
+
     if(it->second->bad() || it->second->fail()) // проверка ошибки записи
         return boost::system::errc::make_error_code(boost::system::errc::io_error);
+
     return {};
 }
 
@@ -64,7 +68,9 @@ boost::system::error_code File_builder::close_file(uint32_t file_id)
     auto it = open_files_.find(file_id);
     if(it == open_files_.end())
         return boost::system::errc::make_error_code(boost::system::errc::bad_file_descriptor);
+
     it->second->close();
     open_files_.erase(it);
+    
     return {};
 }

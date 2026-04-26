@@ -25,8 +25,10 @@ class ProtoStream
 
         explicit ProtoStream(boost::asio::ip::udp::socket socket);
 
-        explicit ProtoStream
-        (boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint);
+        explicit ProtoStream(
+            boost::asio::ip::udp::socket socket,
+            boost::asio::ip::udp::endpoint peer_endpoint
+        );
 
         ProtoStream(const ProtoStream&) = delete;
         ProtoStream& operator=(const ProtoStream&) = delete;

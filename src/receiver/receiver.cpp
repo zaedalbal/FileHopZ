@@ -10,8 +10,14 @@ namespace
     }
 }
 
-Receiver::Receiver(boost::asio::io_context& context, unsigned short port, std::filesystem::path& output_directory)
-: File_transfer(context, port), output_directory_(output_directory), file_builder_(output_directory_)
+Receiver::Receiver(
+    boost::asio::io_context& context,
+    unsigned short port,
+    std::filesystem::path& output_directory
+)
+:   File_transfer(context, port),
+    output_directory_(output_directory),
+    file_builder_(output_directory_)
 {}
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start()
@@ -50,12 +56,14 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             Packet confirm_packet;
             confirm_packet.header.type = PacketType::CONFIRM;
             confirm_packet.header.size = 0;
+
             ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
                 co_return ec;
             }
+
             co_return co_await start_transfer();
         }
         else if(confirm == "n" || confirm == "N")
@@ -63,12 +71,14 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             Packet confirm_packet;
             confirm_packet.header.type = PacketType::CONFIRM_FAILED;
             confirm_packet.header.size = 0;
+
             ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
                 co_return ec;
             }
+
             co_return ec;
         }
     }
@@ -81,8 +91,10 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
     while(!end_transfer_flag_)
     {
         auto chunk = co_await protostream_.receive();
+
         Packet packet;
         std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
+
         auto ec = handle_packet(std::move(packet));
         if(ec)
             co_return ec;
@@ -100,14 +112,18 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
             auto ec = file_builder_.create_directory(extract_path(packet));
             if(ec)
                 return ec;
-        } break;
+
+            break;
+        }
 
         case PacketType::CREATE_FILE:
         {
             auto ec = file_builder_.create_file(extract_path(packet), packet.header.file_id);
             if(ec)
                 return ec;
-        } break;
+            
+            break;
+        }
 
         case PacketType::FILE_DATA:
         {
@@ -133,20 +149,24 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
                 return boost::system::errc::make_error_code(boost::system::errc::file_too_large);
             }
 
-            
-        } break;
+            break;
+        }
 
         case PacketType::END_FILE:
         {
             auto ec = file_builder_.close_file(packet.header.file_id);
             if(ec)
                 return ec;
-        } break;
+
+            break;
+        }
 
         case PacketType::END_TRANSFER:
         {
             end_transfer_flag_ = true;
-        } break;
+
+            break;
+        }
 
         default:
         {std::cerr << "unknown packet type\n";}

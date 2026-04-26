@@ -3,11 +3,13 @@
 #include <map>
 
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket)
-: executor_(socket.get_executor()), transport_(std::move(socket), boost::asio::ip::udp::endpoint())
+:   executor_(socket.get_executor()),
+    transport_(std::move(socket), boost::asio::ip::udp::endpoint())
 {}
 
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
-: executor_(socket.get_executor()), transport_(std::move(socket), std::move(peer_endpoint))
+:   executor_(socket.get_executor()),
+    transport_(std::move(socket), std::move(peer_endpoint))
 {}
 
 boost::asio::awaitable<boost::system::error_code>
@@ -15,6 +17,7 @@ ProtoStream::send(std::span<const std::byte> data)
 {
     if(!transport_loops_running_)
         start_loops();
+
     if(data.size() > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
         co_return boost::system::errc::make_error_code(boost::system::errc::message_size);
     
@@ -39,8 +42,10 @@ ProtoStream::receive()
         // в будущем поменять, тк эта штука очень сильно ест CPU!!!
         co_await boost::asio::post(executor, boost::asio::use_awaitable);
     }
+
     ProtoStream::Chunk chunk = std::move(ready_chunks_.front());
     ready_chunks_.pop_front();
+
     co_return chunk;
 }
 
@@ -73,6 +78,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
     boost::system::error_code ec;
     std::unordered_map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
     decltype(PHZ::PacketHeader::sequence) expected_sequence = 0;
+    
     while(receive_chunks_loop_running_)
     {
         PHZ::Packet packet;

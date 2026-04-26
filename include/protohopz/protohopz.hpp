@@ -8,8 +8,10 @@
 class ProtoHopZ
 {
     public:
-        explicit ProtoHopZ
-        (boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint);
+        explicit ProtoHopZ(
+            boost::asio::ip::udp::socket socket,
+            boost::asio::ip::udp::endpoint peer_endpoint
+        );
 
         void start(); // метод для запуска receive_loop и timeout_loop
 

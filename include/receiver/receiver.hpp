@@ -6,7 +6,11 @@
 class Receiver : public File_transfer
 {
     public:
-        explicit Receiver(boost::asio::io_context& context, unsigned short port, std::filesystem::path& output_file);
+        explicit Receiver(
+            boost::asio::io_context& context,
+            unsigned short port,
+            std::filesystem::path& output_file
+        );
 
         boost::asio::awaitable<boost::system::error_code>
         start() override;

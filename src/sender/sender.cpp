@@ -2,8 +2,13 @@
 #include <packet.hpp>
 #include <iostream>
 
-Sender::Sender(boost::asio::io_context& context, const std::string& ip, unsigned short port, std::filesystem::path& files_to_send)
-: File_transfer(context, ip, port), files_to_send_(files_to_send), file_walker_(files_to_send_)
+Sender::Sender(
+    boost::asio::io_context& context,
+    const std::string& ip,
+    unsigned short port,
+    std::filesystem::path& files_to_send
+)
+:   File_transfer(context, ip, port), files_to_send_(files_to_send), file_walker_(files_to_send_)
 {}
 
 boost::asio::awaitable<boost::system::error_code>
@@ -42,8 +47,8 @@ Sender::transfer_confirmation()
         std::cerr << ec.message() << "\n";
         co_return ec;
     }
-    auto chunk = co_await protostream_.receive();
 
+    auto chunk = co_await protostream_.receive();
     std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
 
     if(packet.header.type == PacketType::CONFIRM)
@@ -68,6 +73,7 @@ Sender::start_transfer()
     Packet end_transfer_packet;
     end_transfer_packet.header.type = PacketType::END_TRANSFER;
     end_transfer_packet.header.size = 0;
+
     auto ec = co_await protostream_.send(std::as_bytes(std::span{&end_transfer_packet, 1}));
     if(ec)
         co_return ec;
@@ -80,6 +86,7 @@ boost::asio::awaitable<boost::system::error_code>
 Sender::path_handler(const std::filesystem::path& file)
 {
     auto status = std::filesystem::status(file);
+
     switch(status.type())
     {
        case std::filesystem::file_type::directory:
@@ -95,23 +102,28 @@ Sender::path_handler(const std::filesystem::path& file)
             auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
             if(ec)
                 co_return ec;
-       } break;
+
+            break;
+       }
 
        case std::filesystem::file_type::regular:
        {
             std::ifstream file_stream(file, std::ios::binary);
             if(!file_stream)
-                co_return boost::system::errc::make_error_code
-                (boost::system::errc::file_exists);
+                co_return boost::system::errc::make_error_code(
+                    boost::system::errc::file_exists
+                );
+            
             auto file_id = file_id_counter_++;
             auto string_path = file.string();
             std::size_t bytes_read = 0;
-
-            Packet packet_create_file;
             auto relative_path = file_walker_.relative_path().string();
+            
+            Packet packet_create_file;
             packet_create_file.set_payload(relative_path.data(), relative_path.size());
             packet_create_file.header.type = PacketType::CREATE_FILE;
             packet_create_file.header.file_id = file_id;
+
             auto error = co_await protostream_.send(std::as_bytes(std::span{&packet_create_file, 1}));
             if(error)
                 co_return error;
@@ -130,7 +142,8 @@ Sender::path_handler(const std::filesystem::path& file)
                 if(ec)
                     co_return ec;
 
-            } while(bytes_read == PACKET_SIZE);
+            }
+            while(bytes_read == PACKET_SIZE);
 
             Packet packet;
             packet.header.file_id = file_id;
@@ -140,7 +153,9 @@ Sender::path_handler(const std::filesystem::path& file)
             auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
             if(ec)
                 co_return ec;
-       } break;
+
+            break;
+       }
 
        default:
        {

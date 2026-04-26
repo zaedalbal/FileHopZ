@@ -66,6 +66,7 @@ std::filesystem::path File_walker::relative_path()
 {
     if(single_file_)
         return current_.filename();
+
     return std::filesystem::relative(current_, root_);
 }
 

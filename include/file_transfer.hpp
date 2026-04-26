@@ -7,12 +7,17 @@ class File_transfer
 {
     public:
         // конструктор для Receiver
-        explicit File_transfer
-        (boost::asio::io_context& context, unsigned short port);
+        explicit File_transfer(
+            boost::asio::io_context& context,
+            unsigned short port
+        );
 
         // конструктор для Sender
-        explicit File_transfer
-        (boost::asio::io_context& context, const std::string& peer_adress, unsigned short peer_port);
+        explicit File_transfer(
+            boost::asio::io_context& context,
+            const std::string& peer_adress,
+            unsigned short peer_port
+        );
 
         virtual ~File_transfer() = default;
 

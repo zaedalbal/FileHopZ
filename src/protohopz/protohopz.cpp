@@ -1,9 +1,11 @@
 #include "protohopz/protohopz.hpp"
 #include <iostream>
 
-ProtoHopZ::ProtoHopZ
-(boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
-: socket_(std::move(socket)), peer_endpoint_(std::move(peer_endpoint))
+ProtoHopZ::ProtoHopZ(
+    boost::asio::ip::udp::socket socket,
+    boost::asio::ip::udp::endpoint peer_endpoint
+)
+:   socket_(std::move(socket)), peer_endpoint_(std::move(peer_endpoint))
 {}
 
 void ProtoHopZ::start()
@@ -40,10 +42,11 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     auto packet = *source;
     packet.header.sequence = sequence_counter_++;
 
-    co_await socket_.async_send_to
-    (boost::asio::buffer(&packet, sizeof(PHZ::PacketHeader) + packet.header.size),
+    co_await socket_.async_send_to(
+    boost::asio::buffer(&packet, sizeof(PHZ::PacketHeader) + packet.header.size),
     peer_endpoint_, 
-    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+);
 
     if(ec)
         co_return ec;
@@ -80,10 +83,14 @@ ProtoHopZ::resend_packet(uint32_t sequense)
     if(it == in_flight_.end())
         co_return ec;
     
-    co_await socket_.async_send_to
-    (boost::asio::buffer(&it->second.packet, sizeof(PHZ::PacketHeader) + it->second.packet.header.size),
-    peer_endpoint_, 
-    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    co_await socket_.async_send_to(
+        boost::asio::buffer(
+            &it->second.packet,
+            sizeof(PHZ::PacketHeader) + it->second.packet.header.size
+        ),
+        peer_endpoint_,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+);
 
     it->second.send_time = std::chrono::steady_clock::now();
 
@@ -97,29 +104,36 @@ ProtoHopZ::receive_loop()
     while(running_)
     {
         PHZ::Packet packet;
-        co_await socket_.async_receive_from
-        (boost::asio::buffer(&packet, sizeof(PHZ::Packet)),
-        peer_endpoint_,
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+        co_await socket_.async_receive_from(
+            boost::asio::buffer(&packet, sizeof(PHZ::Packet)),
+            peer_endpoint_,
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+        );
         if(ec)
             co_return ec;
+
         switch(packet.header.type)
         {
             case PHZ::PacketType::ACK :
             {
                 ack_handler(packet.header.sequence);
+
+                break;
             }
-            break;
 
             case PHZ::PacketType::DATA :
             {
                 co_await send_ack(packet.header.sequence);
+
                 if(received_packets_.contains(packet.header.sequence))
                     continue;
+
                 received_packets_.insert(packet.header.sequence);
                 received_packets_queue_.push(std::move(packet));
+
+                break;
             }
-            break;
         }
     }
 }
