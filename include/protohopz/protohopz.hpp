@@ -1,5 +1,6 @@
 #pragma once
 #include "protohopz_packet.hpp"
+#include "utils/async_queue.hpp"
 #include <boost/asio.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -45,7 +46,9 @@ class ProtoHopZ
         std::atomic<bool> running_;
 
         uint32_t sequence_counter_ = 0;
-        std::queue<PHZ::Packet> received_packets_queue_;
+
+        Async_queue<PHZ::Packet> received_packets_queue_;
+
         std::unordered_set<uint32_t> received_packets_;
         std::unordered_map<uint32_t, PHZ::PacketLocal> in_flight_;
 

@@ -5,7 +5,9 @@ ProtoHopZ::ProtoHopZ(
     boost::asio::ip::udp::socket socket,
     boost::asio::ip::udp::endpoint peer_endpoint
 )
-:   socket_(std::move(socket)), peer_endpoint_(std::move(peer_endpoint))
+:   socket_(std::move(socket)),
+    peer_endpoint_(std::move(peer_endpoint)),
+    received_packets_queue_(socket_.get_executor())
 {}
 
 void ProtoHopZ::start()
@@ -60,15 +62,7 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
 boost::asio::awaitable<void> ProtoHopZ::receive_packet(PHZ::Packet* destination)
 {
     PHZ::Packet packet;
-    while(received_packets_queue_.empty())
-    {
-        auto executor = co_await boost::asio::this_coro::executor;
-        // в будущем поменять, тк эта штука очень сильно ест CPU!!!
-        co_await boost::asio::post(executor, boost::asio::use_awaitable);
-    }
-
-    packet = received_packets_queue_.front();
-    received_packets_queue_.pop();
+    packet = co_await received_packets_queue_.pop();
     *destination = packet;
 
     co_return;

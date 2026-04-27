@@ -50,7 +50,7 @@ class ProtoStream
 
         ProtoHopZ transport_;
 
-        std::deque<Chunk> ready_chunks_;
+        Async_queue<Chunk> ready_chunks_;
 
         bool transport_loops_running_ = false;
         bool receive_chunks_loop_running_ = false;

@@ -4,12 +4,14 @@
 
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket)
 :   executor_(socket.get_executor()),
-    transport_(std::move(socket), boost::asio::ip::udp::endpoint())
+    transport_(std::move(socket), boost::asio::ip::udp::endpoint()),
+    ready_chunks_(executor_)
 {}
 
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
 :   executor_(socket.get_executor()),
-    transport_(std::move(socket), std::move(peer_endpoint))
+    transport_(std::move(socket), std::move(peer_endpoint)),
+    ready_chunks_(executor_)
 {}
 
 boost::asio::awaitable<boost::system::error_code>
@@ -37,14 +39,7 @@ ProtoStream::receive()
 
     auto executor = co_await boost::asio::this_coro::executor;
 
-    while(ready_chunks_.empty())
-    {
-        // в будущем поменять, тк эта штука очень сильно ест CPU!!!
-        co_await boost::asio::post(executor, boost::asio::use_awaitable);
-    }
-
-    ProtoStream::Chunk chunk = std::move(ready_chunks_.front());
-    ready_chunks_.pop_front();
+    ProtoStream::Chunk chunk = co_await ready_chunks_.pop();
 
     co_return chunk;
 }
@@ -119,7 +114,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
             if(it == packets_buffer.end())
                 break;
             
-            ready_chunks_.push_back(ProtoStream::Chunk(it->second.data, it->second.header.size));
+            ready_chunks_.push(ProtoStream::Chunk(it->second.data, it->second.header.size));
             packets_buffer.erase(it);
             ++expected_sequence;
         }
