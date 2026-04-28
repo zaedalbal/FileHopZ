@@ -7,7 +7,8 @@ ProtoHopZ::ProtoHopZ(
 )
 :   socket_(std::move(socket)),
     peer_endpoint_(std::move(peer_endpoint)),
-    received_packets_queue_(socket_.get_executor())
+    received_packets_queue_(socket_.get_executor()),
+    cwnd_(socket_.get_executor(), 1.0)
 {}
 
 void ProtoHopZ::start()
@@ -35,10 +36,9 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     boost::system::error_code ec;
     auto executor = co_await boost::asio::this_coro::executor;
 
-    while(in_flight_.size() > static_cast<std::size_t>(cwnd_))
+    while(in_flight_.size() > static_cast<std::size_t>(cwnd_.get()))
     {
-        // в будущем поменять, тк эта штука очень сильно ест CPU!!!
-        co_await boost::asio::post(executor, boost::asio::use_awaitable); 
+        co_await cwnd_.wait();
     }
 
     auto packet = *source;
@@ -147,8 +147,8 @@ ProtoHopZ::timeout_loop()
         {
             if(now - packet.send_time > PHZ::TIMEOUT)
             {
-                sshthresh_ = cwnd_ / 2.0;
-                cwnd_ = 1.0;
+                sshthresh_ = cwnd_.get() / 2.0;
+                cwnd_.set(1.0);
 
                 ec = co_await resend_packet(seq);
                 if(ec)
@@ -187,8 +187,8 @@ void ProtoHopZ::ack_handler(uint32_t sequence)
 {
     in_flight_.erase(sequence);
 
-    if(cwnd_ < sshthresh_)
-        cwnd_ *= 2;
+    if(cwnd_.get() < sshthresh_)
+        cwnd_.set(cwnd_.get() * 2);
     else
-        cwnd_ += 1.0 / cwnd_;
+        cwnd_.set(cwnd_.get() + 1.0);
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "protohopz_packet.hpp"
 #include "utils/async_queue.hpp"
+#include "utils/async_value.hpp"
 #include <boost/asio.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,6 +54,6 @@ class ProtoHopZ
         std::unordered_map<uint32_t, PHZ::PacketLocal> in_flight_;
 
         double bandwidth_bytes_per_second = 0.0;
-        double cwnd_ = 1.0;
+        Async_value<double> cwnd_; //= 1.0;
         double sshthresh_ = 64.0;
 };
