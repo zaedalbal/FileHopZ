@@ -39,47 +39,31 @@ class Async_value
 
         auto wait()
         {
-            struct awaiter
-            {
-                Async_value* self;
-                std::size_t observed_version;
-                std::optional<T> result;
-
-                bool await_ready() const noexcept
-                {
-                    return self->version_ != observed_version;
-                }
-            
-                void await_suspend(std::coroutine_handle<> handle)
+            auto token = boost::asio::use_awaitable;
+            return boost::asio::async_initiate<
+                decltype(token),
+                void(T)
+            >(
+                [this](auto handler)
                 {
                     auto waiter = std::make_shared<waiter_state>();
 
-                    waiter->resume = [this, handle](T value)
+                    waiter->resume = [handler = std::move(handler)](T value) mutable
                     {
-                        result = std::move(value);
-                        handle.resume();
+                        handler(std::move(value));
                     };
 
-                    self->waiters_.push_back(waiter);
-                }
+                    waiters_.push_back(waiter);
+                },
+                token
+            );
 
-                T await_resume()
-                {
-                    return *result;
-                }
-            };
-
-            return awaiter{
-                this,
-                version_,
-                std::nullopt
-            };
         }
 
     private:
         struct waiter_state
         {
-            std::function<void(T)> resume;
+            boost::asio::any_completion_handler<void(T)> resume;
         };
 
         boost::asio::strand<boost::asio::any_io_executor> strand_;
