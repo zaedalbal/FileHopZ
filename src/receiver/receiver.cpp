@@ -24,14 +24,6 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start()
 {
     auto ec = co_await transfer_confirmation();
 
-    if(ec)
-        std::cerr << ec.what() << "\n";
-    
-    // Завершение контекста
-    context_.stop();
-    // В будущем переписать protohopz и protostream для самостоятельного завершения io_context,
-    // на данный момент приходится делать context_.stop()
-
     co_return ec;
 }
 
@@ -99,6 +91,8 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
         if(ec)
             co_return ec;
     }
+
+    co_await protostream_.close();
 
     co_return boost::system::error_code();
 }

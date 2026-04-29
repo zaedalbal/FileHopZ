@@ -52,8 +52,8 @@ boost::asio::awaitable<void> ProtoStream::close()
     
     co_await transport_.send_packet(&packet);
 
-    transport_.stop();
     receive_chunks_loop_running_ = false;
+    transport_.stop();
 }
 
 void ProtoStream::start_loops()

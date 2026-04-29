@@ -28,6 +28,11 @@ void ProtoHopZ::stop()
     boost::system::error_code ec;
     running_ = false;
     socket_.cancel(ec);
+
+    PHZ::Packet end_packet;
+    end_packet.header.type = PHZ::PacketType::END_TRANSFER;
+    end_packet.header.size = 0;
+    received_packets_queue_.push(std::move(end_packet));
 }
 
 boost::asio::awaitable<boost::system::error_code>
