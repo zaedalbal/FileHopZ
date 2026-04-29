@@ -29,9 +29,11 @@ void ProtoHopZ::stop()
     running_ = false;
     socket_.cancel(ec);
 
+    // разбудить received_packets_queue.pop()
     PHZ::Packet end_packet;
     end_packet.header.type = PHZ::PacketType::END_TRANSFER;
     end_packet.header.size = 0;
+    end_packet.header.sequence = ++sequence_counter_;
     received_packets_queue_.push(std::move(end_packet));
 }
 

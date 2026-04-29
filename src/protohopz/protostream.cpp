@@ -78,6 +78,10 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
     {
         PHZ::Packet packet;
         co_await transport_.receive_packet(&packet);
+        
+        // если что то поменялось после ожидания корутины
+        if(!receive_chunks_loop_running_)
+            break;
 
         if(packet.header.sequence < expected_sequence)
             continue;

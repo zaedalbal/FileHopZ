@@ -78,8 +78,6 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
 {
-    std::cout << "receiver ok\n";
-
     while(!end_transfer_flag_)
     {
         auto chunk = co_await protostream_.receive();
