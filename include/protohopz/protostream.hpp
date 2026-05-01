@@ -8,10 +8,15 @@ class ProtoStream
     public:
         struct Chunk
         {
+            explicit Chunk()
+            : size_(0), data_(nullptr)
+            {}
+
             explicit Chunk(const void* data, std::size_t size)
             : size_(size), data_(std::make_unique<char[]>(size_))
             {
-                std::memcpy(data_.get(), data, size_);
+                if(size > 0 && data)
+                    std::memcpy(data_.get(), data, size_);
             }
 
             Chunk(Chunk&&) noexcept = default;
