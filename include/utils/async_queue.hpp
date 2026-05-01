@@ -2,6 +2,7 @@
 #include <boost/asio.hpp>
 #include <deque>
 #include <optional>
+#include <algorithm>
 
 template <typename T>
 class Async_queue
@@ -15,21 +16,21 @@ class Async_queue
         {
             if(!waiters_.empty())
             {
-                auto handler = std::move(waiters_.front());
+                auto waiter = std::move(waiters_.front());
                 waiters_.pop_front();
                 
                 // получение executor'а с которым должен выполняться handler
-                auto handler_executor = boost::asio::get_associated_executor(handler, executor_);
+                auto handler_executor = boost::asio::get_associated_executor(waiter->handler, executor_);
 
                 // dispatch выполняет сразу, если уже в нужном executor'е,
                 // иначе отправить в нужный executor на выполнение
                 boost::asio::dispatch(
                     handler_executor,
                     // mutable чтобы делать std::move()
-                    [handler = std::move(handler), value = std::move(value)] mutable
+                    [waiter = std::move(waiter), value = std::move(value)] mutable
                     {
                     // пробуждение ожидающей коруитны и возращение ей value
-                        handler(std::move(value));
+                        waiter->handler(boost::system::error_code{}, std::move(value));
                     }
                 );
             }
@@ -53,12 +54,50 @@ class Async_queue
             // который предоставляет продолжение корутины
             auto result = co_await boost::asio::async_initiate<
                 decltype(token),
-                void(T)
+                void(boost::system::error_code, T)
             >(
                 [this](auto handler)
                 {
-                    // сохранение для того чтобы разбудить ожидающего
-                    waiters_.push_back(std::move(handler));
+                    auto waiter = std::make_shared<Waiter>();
+
+                    waiter->handler = std::move(handler);
+
+                    auto slot = boost::asio::get_associated_cancellation_slot(waiter->handler);
+
+                    if(slot.is_connected())
+                    {
+                        slot.assign(
+                            [this, waiter](boost::asio::cancellation_type)
+                            {
+                                waiter->cancelled = true;
+
+                                waiters_.erase(
+                                    std::remove(
+                                        waiters_.begin(),
+                                        waiters_.end(),
+                                        waiter
+                                    ),
+                                    waiters_.end()
+                                );
+                                auto executor = boost::asio::get_associated_executor(
+                                    waiter->handler,
+                                    executor_
+                                );
+
+                                boost::asio::dispatch(
+                                    executor,
+                                    [waiter]()
+                                    {
+                                        waiter->handler(
+                                            boost::asio::error::operation_aborted,
+                                            T{}
+                                        );
+                                    }
+                                );
+                            }
+                        );
+                    }
+                    waiters_.push_back(waiter);
                 },
                 // указание что надо использовать awaitable
                 token
@@ -68,11 +107,16 @@ class Async_queue
         }
 
     private:
+        struct Waiter
+        {
+            boost::asio::any_completion_handler<void(boost::system::error_code, T)> handler;
+
+            bool cancelled = false;
+        };
+
         boost::asio::any_io_executor executor_;
 
         std::deque<T> queue_;
 
-        std::deque<
-        boost::asio::any_completion_handler<void(T)>
-        > waiters_;
+        std::deque<std::shared_ptr<Waiter>> waiters_;
 };
