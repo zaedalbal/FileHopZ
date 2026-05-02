@@ -45,7 +45,15 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
 
     while(in_flight_.size() > static_cast<std::size_t>(cwnd_.get()))
     {
-        co_await cwnd_.wait();
+        co_await cwnd_.wait(
+            boost::asio::redirect_error(
+                boost::asio::use_awaitable,
+                ec
+            )
+        );
+
+        if(ec)
+            co_return ec;
     }
 
     auto packet = *source;
@@ -66,13 +74,28 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
    co_return ec;
 }
 
-boost::asio::awaitable<void> ProtoHopZ::receive_packet(PHZ::Packet* destination)
+boost::asio::awaitable<boost::system::error_code>
+ProtoHopZ::receive_packet(PHZ::Packet* destination)
 {
+    boost::system::error_code ec;
+
     PHZ::Packet packet;
-    packet = co_await received_packets_queue_.pop();
+    packet = co_await received_packets_queue_.pop(
+        boost::asio::redirect_error(
+            boost::asio::use_awaitable,
+            ec
+        )
+    );
+
+    if(ec)
+    {
+        destination = nullptr;
+        co_return ec;
+    }
+
     *destination = packet;
 
-    co_return;
+    co_return boost::system::error_code{};
 }
 
 boost::asio::awaitable<boost::system::error_code>
