@@ -1,9 +1,8 @@
+#pragma once
 #include <boost/asio.hpp>
 #include <deque>
-#include <coroutine>
-#include <optional>
-#include <functional>
 #include <memory>
+#include <algorithm>
 
 template <typename T>
 class Async_value
@@ -19,7 +18,7 @@ class Async_value
         {
             return value_;
         }
-        
+
         void set(T new_value)
         {
             boost::asio::dispatch(
@@ -29,41 +28,84 @@ class Async_value
                     self->value_ = std::move(value);
                     ++self->version_;
 
-                    for(auto& it : self->waiters_)
-                        it->resume(self->value_);
-                    
+                    for(auto& w : self->waiters_)
+                    {
+                        auto ex = boost::asio::get_associated_executor(
+                            w->handler,
+                            self->strand_
+                        );
+
+                        boost::asio::dispatch(
+                            ex,
+                            [w, v = self->value_]() mutable
+                            {
+                                w->handler(boost::system::error_code{}, std::move(v));
+                            }
+                        );
+                    }
+
                     self->waiters_.clear();
                 }
             );
         }
 
-        auto wait()
+        template <typename CompletionToken = boost::asio::use_awaitable_t<>>
+        auto wait(CompletionToken token = {})
         {
-            auto token = boost::asio::use_awaitable;
             return boost::asio::async_initiate<
-                decltype(token),
-                void(T)
+                CompletionToken,
+                void(boost::system::error_code, T)
             >(
                 [this](auto handler)
                 {
-                    auto waiter = std::make_shared<waiter_state>();
+                    auto waiter = std::make_shared<Waiter>();
+                    waiter->handler = std::move(handler);
 
-                    waiter->resume = [handler = std::move(handler)](T value) mutable
+                    auto slot = boost::asio::get_associated_cancellation_slot(waiter->handler);
+
+                    if(slot.is_connected())
                     {
-                        handler(std::move(value));
-                    };
+                        slot.assign(
+                            [this, waiter](boost::asio::cancellation_type)
+                            {
+                                waiters_.erase(
+                                    std::remove(
+                                        waiters_.begin(),
+                                        waiters_.end(),
+                                        waiter
+                                    ),
+                                    waiters_.end()
+                                );
 
-                    waiters_.push_back(waiter);
+                                auto ex = boost::asio::get_associated_executor(
+                                    waiter->handler,
+                                    strand_
+                                );
+
+                                boost::asio::dispatch(
+                                    ex,
+                                    [waiter]() mutable
+                                    {
+                                        waiter->handler(
+                                            boost::asio::error::operation_aborted,
+                                            T{}
+                                        );
+                                    }
+                                );
+                            }
+                        );
+                    }
+
+                    waiters_.push_back(std::move(waiter));
                 },
                 token
             );
-
         }
 
     private:
-        struct waiter_state
+        struct Waiter
         {
-            boost::asio::any_completion_handler<void(T)> resume;
+            boost::asio::any_completion_handler<void(boost::system::error_code, T)> handler;
         };
 
         boost::asio::strand<boost::asio::any_io_executor> strand_;
@@ -71,5 +113,5 @@ class Async_value
         T value_;
         std::size_t version_;
 
-        std::deque<std::shared_ptr<waiter_state>> waiters_;
+        std::deque<std::shared_ptr<Waiter>> waiters_;
 };
