@@ -24,6 +24,11 @@ class ProtoStream
             Chunk(const Chunk&) = delete;
             Chunk& operator=(const Chunk&) = delete;
 
+            bool empty()
+            {
+                return (size_ == 0 && data_ == nullptr);
+            }
+
             std::size_t size_;
             std::unique_ptr<char[]> data_;
         };
