@@ -37,9 +37,23 @@ ProtoStream::receive()
     if(!transport_loops_running_)
         start_loops();
 
+    boost::system::error_code ec;
+
     auto executor = co_await boost::asio::this_coro::executor;
 
-    ProtoStream::Chunk chunk = co_await ready_chunks_.pop();
+    ProtoStream::Chunk chunk = co_await ready_chunks_.pop(
+        boost::asio::redirect_error(
+            boost::asio::use_awaitable,
+            ec
+        )
+    );
+
+    if(ec)
+    {
+        if(ec != boost::asio::error::operation_aborted)
+            std::cerr << ec.message() << "\n";
+        co_return Chunk{};
+    }
 
     co_return chunk;
 }
