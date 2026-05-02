@@ -18,18 +18,16 @@ class Async_queue
             {
                 auto waiter = std::move(waiters_.front());
                 waiters_.pop_front();
-                
-                // получение executor'а с которым должен выполняться handler
-                auto handler_executor = boost::asio::get_associated_executor(waiter->handler, executor_);
 
-                // dispatch выполняет сразу, если уже в нужном executor'е,
-                // иначе отправить в нужный executor на выполнение
+                auto handler_executor = boost::asio::get_associated_executor(
+                    waiter->handler,
+                    executor_
+                );
+
                 boost::asio::dispatch(
                     handler_executor,
-                    // mutable чтобы делать std::move()
                     [waiter = std::move(waiter), value = std::move(value)] mutable
                     {
-                    // пробуждение ожидающей коруитны и возращение ей value
                         waiter->handler(boost::system::error_code{}, std::move(value));
                     }
                 );
@@ -38,28 +36,36 @@ class Async_queue
                 queue_.push_back(std::move(value));
         }
 
-        boost::asio::awaitable<T> pop()
+        template <typename CompletionToken = boost::asio::use_awaitable_t<>>
+        auto pop(CompletionToken token = {})
         {
-            if(!queue_.empty())
-            {
-                auto value = std::move(queue_.front());
-                queue_.pop_front();
-                co_return std::move(value);
-            }
-
-            // указание что будет awaitable результат (для использования co_await)
-            auto token = boost::asio::use_awaitable;
-
-            // async_initiate создает асинхронную операцию и даёт handler,
-            // который предоставляет продолжение корутины
-            auto result = co_await boost::asio::async_initiate<
-                decltype(token),
+            return boost::asio::async_initiate<
+                CompletionToken,
                 void(boost::system::error_code, T)
             >(
                 [this](auto handler)
                 {
-                    auto waiter = std::make_shared<Waiter>();
+                    // есть готовое значение — сразу завершаем
+                    if(!queue_.empty())
+                    {
+                        auto value = std::move(queue_.front());
+                        queue_.pop_front();
 
+                        auto ex = boost::asio::get_associated_executor(handler, executor_);
+
+                        boost::asio::dispatch(
+                            ex,
+                            [h = std::move(handler), v = std::move(value)] mutable
+                            {
+                                h(boost::system::error_code{}, std::move(v));
+                            }
+                        );
+
+                        return;
+                    }
+
+                    // иначе ставим в очередь ожидания
+                    auto waiter = std::make_shared<Waiter>();
                     waiter->handler = std::move(handler);
 
                     auto slot = boost::asio::get_associated_cancellation_slot(waiter->handler);
@@ -79,13 +85,14 @@ class Async_queue
                                     ),
                                     waiters_.end()
                                 );
-                                auto executor = boost::asio::get_associated_executor(
+
+                                auto ex = boost::asio::get_associated_executor(
                                     waiter->handler,
                                     executor_
                                 );
 
                                 boost::asio::dispatch(
-                                    executor,
+                                    ex,
                                     [waiter]()
                                     {
                                         waiter->handler(
@@ -97,26 +104,21 @@ class Async_queue
                             }
                         );
                     }
-                    waiters_.push_back(waiter);
+
+                    waiters_.push_back(std::move(waiter));
                 },
-                // указание что надо использовать awaitable
                 token
             );
-            
-            co_return result;
         }
 
     private:
         struct Waiter
         {
             boost::asio::any_completion_handler<void(boost::system::error_code, T)> handler;
-
             bool cancelled = false;
         };
 
         boost::asio::any_io_executor executor_;
-
         std::deque<T> queue_;
-
         std::deque<std::shared_ptr<Waiter>> waiters_;
 };
