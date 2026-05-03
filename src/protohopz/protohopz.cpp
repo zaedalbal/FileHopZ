@@ -14,10 +14,24 @@ ProtoHopZ::ProtoHopZ(
 void ProtoHopZ::start()
 {
     auto executor = socket_.get_executor();
-    running_ = true;
 
-    boost::asio::co_spawn(executor, receive_loop(), boost::asio::detached);
-    boost::asio::co_spawn(executor, timeout_loop(), boost::asio::detached);
+    boost::asio::co_spawn(
+        executor,
+        receive_loop(),
+        boost::asio::bind_cancellation_slot(
+            cancellation_signal_receive_loop.slot(),
+            boost::asio::detached
+        )
+    );
+
+    boost::asio::co_spawn(
+        executor,
+        timeout_loop(),
+        boost::asio::bind_cancellation_slot(
+            cancellation_signal_timeout_loop.slot(),
+            boost::asio::detached
+        )
+    );
 }
 
 void ProtoHopZ::stop()
@@ -26,7 +40,10 @@ void ProtoHopZ::stop()
     // и только после этого все завершалось
     
     boost::system::error_code ec;
-    running_ = false;
+
+    cancellation_signal_receive_loop.emit(boost::asio::cancellation_type::all);
+    cancellation_signal_timeout_loop.emit(boost::asio::cancellation_type::all);
+
     socket_.cancel(ec);
 
     // разбудить received_packets_queue.pop()
@@ -125,7 +142,8 @@ boost::asio::awaitable<boost::system::error_code>
 ProtoHopZ::receive_loop()
 {
     boost::system::error_code ec;
-    while(running_)
+
+    while(true)
     {
         PHZ::Packet packet;
 
@@ -169,7 +187,7 @@ ProtoHopZ::timeout_loop()
     auto executor = co_await boost::asio::this_coro::executor;
     boost::asio::steady_timer timer(executor);
 
-    while(running_)
+    while(true)
     {
         auto now = std::chrono::steady_clock::now();
 
@@ -187,7 +205,12 @@ ProtoHopZ::timeout_loop()
         }
 
         timer.expires_after(std::chrono::milliseconds(10));
-        co_await timer.async_wait(boost::asio::use_awaitable);
+        co_await timer.async_wait(
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+        );
+
+        if(ec)
+            co_return ec;
     }
 
     co_return ec;

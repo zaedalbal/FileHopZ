@@ -44,7 +44,8 @@ class ProtoHopZ
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint peer_endpoint_;
 
-        std::atomic<bool> running_;
+        boost::asio::cancellation_signal cancellation_signal_receive_loop;
+        boost::asio::cancellation_signal cancellation_signal_timeout_loop;
 
         uint32_t sequence_counter_ = 0;
 
