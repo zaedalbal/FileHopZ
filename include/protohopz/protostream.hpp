@@ -62,6 +62,6 @@ class ProtoStream
 
         Async_queue<Chunk> ready_chunks_;
 
-        bool transport_loops_running_ = false;
-        bool receive_chunks_loop_running_ = false;
+        bool loops_running_ = false;
+        boost::asio::cancellation_signal cancellation_signal_receive_chunks_loop_;
 };

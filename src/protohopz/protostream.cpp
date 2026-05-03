@@ -17,7 +17,7 @@ ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::u
 boost::asio::awaitable<boost::system::error_code>
 ProtoStream::send(std::span<const std::byte> data)
 {
-    if(!transport_loops_running_)
+    if(!loops_running_)
         start_loops();
 
     if(data.size() > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
@@ -34,7 +34,7 @@ ProtoStream::send(std::span<const std::byte> data)
 boost::asio::awaitable<ProtoStream::Chunk>
 ProtoStream::receive()
 {
-    if(!transport_loops_running_)
+    if(!loops_running_)
         start_loops();
 
     boost::system::error_code ec;
@@ -66,17 +66,25 @@ boost::asio::awaitable<void> ProtoStream::close()
     
     co_await transport_.send_packet(&packet);
 
-    receive_chunks_loop_running_ = false;
+    loops_running_ = false;
+    cancellation_signal_receive_chunks_loop_.emit(boost::asio::cancellation_type::all);
     transport_.stop();
 }
 
 void ProtoStream::start_loops()
 {
-        transport_loops_running_ = true;
         transport_.start();
 
-        receive_chunks_loop_running_ = true;
-        boost::asio::co_spawn(executor_, receive_chunks_loop(), boost::asio::detached);
+        loops_running_ = true;
+
+        boost::asio::co_spawn(
+            executor_,
+            receive_chunks_loop(),
+            boost::asio::bind_cancellation_slot(
+                cancellation_signal_receive_chunks_loop_.slot(),
+                boost::asio::detached
+            )
+        );
 }
 
 boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
@@ -88,14 +96,13 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
     std::unordered_map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
     decltype(PHZ::PacketHeader::sequence) expected_sequence = 0;
     
-    while(receive_chunks_loop_running_)
+    while(true)
     {
         PHZ::Packet packet;
-        co_await transport_.receive_packet(&packet);
-        
-        // если что то поменялось после ожидания корутины
-        if(!receive_chunks_loop_running_)
-            break;
+
+        ec = co_await transport_.receive_packet(&packet);
+        if(ec)
+            co_return;
 
         if(packet.header.sequence < expected_sequence)
             continue;
@@ -126,7 +133,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
         
         packets_buffer.emplace(packet.header.sequence, std::move(packet));
 
-        while(receive_chunks_loop_running_)
+        while(true)
         {
             auto it = packets_buffer.find(expected_sequence);
             if(it == packets_buffer.end())
