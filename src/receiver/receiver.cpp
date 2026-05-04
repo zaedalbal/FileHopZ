@@ -45,9 +45,16 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         std::getline(std::cin, confirm);
         if(confirm == "Y" || confirm == "y")
         {
-            Packet confirm_packet;
-            confirm_packet.header.type = PacketType::CONFIRM;
-            confirm_packet.header.size = 0;
+            Packet confirm_packet
+            {
+                .header =
+                {
+                    .type = PacketType::CONFIRM,
+                    .flags = {},
+                    .size = 0,
+                    .file_id = 0
+                },
+            };
 
             ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
             if(ec)
@@ -60,9 +67,16 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         }
         else if(confirm == "n" || confirm == "N")
         {
-            Packet confirm_packet;
-            confirm_packet.header.type = PacketType::CONFIRM_FAILED;
-            confirm_packet.header.size = 0;
+            Packet confirm_packet =
+            {
+                .header =
+                {
+                    .type = PacketType::CONFIRM_FAILED,
+                    .flags = {},
+                    .size = 0,
+                    .file_id = 0
+                },
+            };
 
             ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
             if(ec)
