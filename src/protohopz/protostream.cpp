@@ -23,9 +23,17 @@ ProtoStream::send(std::span<const std::byte> data)
     if(data.size() > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
         co_return boost::system::errc::make_error_code(boost::system::errc::message_size);
     
-    PHZ::Packet packet;
-    packet.header.size = data.size();
-    packet.header.type = PHZ::PacketType::DATA;
+    PHZ::Packet packet =
+    {
+        .header =
+        {
+            .type = PHZ::PacketType::DATA,
+            .flags = {},
+            .size = data.size(),
+            .sequence = 0 // sequence контроллируется в ProtoHopZ
+        }
+    };
+
     std::memcpy(packet.data, data.data(), packet.header.size);
 
     co_return co_await transport_.send_packet(&packet);
@@ -60,9 +68,16 @@ ProtoStream::receive()
 
 boost::asio::awaitable<void> ProtoStream::close()
 {
-    PHZ::Packet packet;
-    packet.header.type = PHZ::PacketType::END_TRANSFER;
-    packet.header.size = 0;
+    PHZ::Packet packet =
+    {
+        .header =
+        {
+            .type = PHZ::PacketType::END_TRANSFER,
+            .flags = {},
+            .size = 0,
+            .sequence = 0 // sequence контроллируется в ProtoHopZ
+        }
+    };
     
     co_await transport_.send_packet(&packet);
 
