@@ -47,10 +47,17 @@ void ProtoHopZ::stop()
     socket_.cancel(ec);
 
     // разбудить received_packets_queue.pop()
-    PHZ::Packet end_packet;
-    end_packet.header.type = PHZ::PacketType::END_TRANSFER;
-    end_packet.header.size = 0;
-    end_packet.header.sequence = ++sequence_counter_;
+    PHZ::Packet end_packet =
+    {
+        .header =
+        {
+            .type = PHZ::PacketType::END_TRANSFER,
+            .flags = {},
+            .size = 0,
+            .sequence = ++sequence_counter_
+        }
+    };
+
     received_packets_queue_.push(std::move(end_packet));
 }
 
@@ -77,10 +84,13 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     packet.header.sequence = sequence_counter_++;
 
     co_await socket_.async_send_to(
-    boost::asio::buffer(&packet, sizeof(PHZ::PacketHeader) + packet.header.size),
-    peer_endpoint_, 
-    boost::asio::redirect_error(boost::asio::use_awaitable, ec)
-);
+        boost::asio::buffer(
+            &packet,
+            sizeof(PHZ::PacketHeader) + packet.header.size
+        ),
+        peer_endpoint_, 
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+    );
 
     if(ec)
         co_return ec;
@@ -131,7 +141,7 @@ ProtoHopZ::resend_packet(uint32_t sequense)
         ),
         peer_endpoint_,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec)
-);
+    );
 
     it->second.send_time = std::chrono::steady_clock::now();
 
@@ -221,15 +231,26 @@ ProtoHopZ::send_ack(uint32_t sequence)
 {
     boost::system::error_code ec;
 
-    PHZ::Packet packet{};
-    packet.header.sequence = sequence;
-    packet.header.type = PHZ::PacketType::ACK;
-    packet.header.size = 0;
+    PHZ::Packet packet =
+    {
+        .header =
+        {
+            .type = PHZ::PacketType::ACK,
+            .flags = {},
+            .size = 0,
+            .sequence = sequence
+        }
+    };
 
-    co_await socket_.async_send_to
-    (boost::asio::buffer(&packet, sizeof(PHZ::PacketHeader) + packet.header.size),
-    peer_endpoint_,
-    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    co_await socket_.async_send_to(
+        boost::asio::buffer(
+            &packet,
+            sizeof(PHZ::PacketHeader) + packet.header.size
+        ),
+        peer_endpoint_,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+    );
+
     if(ec) // проверка, если в будущем что то будет ещё добавляться
         co_return ec;
 
