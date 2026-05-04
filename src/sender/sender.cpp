@@ -62,9 +62,16 @@ Sender::start_transfer()
             co_return ec;
     }
 
-    Packet end_transfer_packet;
-    end_transfer_packet.header.type = PacketType::END_TRANSFER;
-    end_transfer_packet.header.size = 0;
+    Packet end_transfer_packet =
+    {
+        .header =
+        {
+            .type = PacketType::END_TRANSFER,
+            .flags = {},
+            .size = 0,
+            .file_id = 0
+        }
+    };
 
     auto ec = co_await protostream_.send(std::as_bytes(std::span{&end_transfer_packet, 1}));
     if(ec)
