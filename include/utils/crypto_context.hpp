@@ -25,19 +25,19 @@ class Crypto_context
         boost::system::error_code init();
 
         // шифрует передаваемые данные и возращает vector с зашифрованными данными
-        std::expected<std::vector<char>, boost::system::error_code>
-        encrypt_data(const char* data, std::size_t size);
+        std::expected<std::vector<std::byte>, boost::system::error_code>
+        encrypt_data(std::span<const std::byte> data);
 
         // расшифровывает передаваемые данные и возращает vector с расшифрованными данными
-        std::expected<std::vector<char>, boost::system::error_code>
-        decrypt_data(const char* data, std::size_t size);
+        std::expected<std::vector<std::byte>, boost::system::error_code>
+        decrypt_data(std::span<const std::byte> data);
 
         // возращает собственный public key
-        std::span<const char> get_own_public_key();
+        std::span<const std::byte, X25519_LEN> get_own_public_key();
 
         // устанавливает public key peer'а
         // только после установки можно вызывать encrypt_data и decrypt_data
-        boost::system::error_code set_peer_public_key(const char* peer_public_key);
+        boost::system::error_code set_peer_public_key(std::span<const std::byte, X25519_LEN> peer_public_key);
     
     private:
         bool is_ready_ = false;
@@ -45,7 +45,9 @@ class Crypto_context
         // указатель на структуру из openssl, которая хранит ключи
         EVP_PKEY* key_handle_ = nullptr;
 
-        std::array<char, KEY_LEN> own_public_key_;
+        std::array<std::byte, X25519_LEN> own_public_key_;
 
-        std::array<char, KEY_LEN> encryption_key_;
+        std::array<std::byte, X25519_LEN> peer_public_key_;
+
+        std::array<std::byte, KEY_LEN> encryption_key_;
 };
