@@ -40,10 +40,27 @@ class Crypto_context
         boost::system::error_code set_peer_public_key(std::span<const std::byte, X25519_LEN> peer_public_key);
     
     private:
+        struct EVP_PKEY_DELETER
+        {
+            void operator()(EVP_PKEY* pkey) noexcept
+            {
+                EVP_PKEY_free(pkey);
+            }
+        };
+
+        struct EVP_PKEY_CTX_DELETER
+        {
+            void operator()(EVP_PKEY_CTX* pkey_ctx) noexcept
+            {
+                EVP_PKEY_CTX_free(pkey_ctx);
+            }
+        };
+
+    private:
         bool is_ready_ = false;
 
         // указатель на структуру из openssl, которая хранит ключи
-        EVP_PKEY* key_handle_ = nullptr;
+        std::unique_ptr<EVP_PKEY, EVP_PKEY_DELETER> key_handle_ = nullptr;
 
         std::array<std::byte, X25519_LEN> own_public_key_;
 
