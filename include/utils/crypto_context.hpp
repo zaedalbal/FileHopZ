@@ -56,6 +56,14 @@ class Crypto_context
             }
         };
 
+        struct EVP_CIPHER_CTX_DELETER
+        {
+            void operator()(EVP_CIPHER_CTX* cipher_ctx) noexcept
+            {
+                EVP_CIPHER_CTX_free(cipher_ctx);
+            }
+        };
+
     private:
         bool is_ready_ = false;
 

@@ -183,5 +183,108 @@ boost::system::error_code Crypto_context::set_peer_public_key
 
     std::ranges::fill(shared_secret, std::byte{0});
 
+    is_ready_ = true;
     return {};
+}
+
+
+std::expected<std::vector<std::byte>, boost::system::error_code>
+Crypto_context::encrypt_data(std::span<const std::byte> data)
+{
+    if(!is_ready_)
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::operation_not_permitted)
+        );
+
+    std::vector<std::byte> output_packet(NONCE_LEN + data.size_bytes() + TAG_LEN);
+
+    // генерация NONCE
+    if(RAND_bytes(
+        reinterpret_cast<unsigned char*>(output_packet.data()),
+        NONCE_LEN
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+
+    std::unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_DELETER> cipher_context(EVP_CIPHER_CTX_new());
+    if(!cipher_context)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    if(EVP_EncryptInit_ex(
+        cipher_context.get(),
+        EVP_chacha20_poly1305(),
+        nullptr,
+        nullptr,
+        nullptr
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );    
+
+    // явное указание длины nonce
+    if(EVP_CIPHER_CTX_ctrl(
+        cipher_context.get(),
+        EVP_CTRL_AEAD_SET_IVLEN,
+        NONCE_LEN,
+        nullptr
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    if(EVP_EncryptInit_ex(
+        cipher_context.get(),
+        nullptr,
+        nullptr,
+        reinterpret_cast<const unsigned char*>(encryption_key_.data()),
+        reinterpret_cast<const unsigned char*>(output_packet.data())
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+
+    int encrypted_bytes = 0;
+    if(EVP_EncryptUpdate(
+        cipher_context.get(),
+        reinterpret_cast<unsigned char*>(output_packet.data() + NONCE_LEN),
+        &encrypted_bytes,
+        reinterpret_cast<const unsigned char*>(data.data()),
+        static_cast<int>(data.size_bytes())
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    int final_bytes = 0;
+    if(EVP_EncryptFinal_ex(
+        cipher_context.get(),
+        nullptr,
+        &final_bytes
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    if(EVP_CIPHER_CTX_ctrl(
+        cipher_context.get(),
+        EVP_CTRL_AEAD_GET_TAG,
+        TAG_LEN,
+        output_packet.data() + NONCE_LEN + data.size_bytes()
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+
+    return output_packet;
 }
