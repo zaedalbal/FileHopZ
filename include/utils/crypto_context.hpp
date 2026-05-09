@@ -16,7 +16,7 @@ class Crypto_context
     public:
         Crypto_context() = default;
 
-        ~Crypto_context();
+        ~Crypto_context() = default;
 
         Crypto_context(const Crypto_context&) = delete;
         Crypto_context& operator=(const Crypto_context&) = delete;

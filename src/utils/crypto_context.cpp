@@ -1,5 +1,10 @@
 #include <utils/crypto_context.hpp>
 
+// для сборки теста раскоментировать include снизу
+/*#include "../../include/utils/crypto_context.hpp"
+Crypto_context::~Crypto_context()
+{}*/
+
 boost::system::error_code Crypto_context::init()
 {
     std::unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_DELETER> generation_context(
@@ -287,4 +292,108 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         );
 
     return output_packet;
+}
+
+
+std::expected<std::vector<std::byte>, boost::system::error_code>
+Crypto_context::decrypt_data(std::span<const std::byte> data)
+{
+    if(!is_ready_)
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::operation_not_permitted)
+        );
+    
+    if(data.size_bytes() <= NONCE_LEN + TAG_LEN)
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::message_size)
+        );
+
+    const auto nonce_ptr = data.data();
+    const auto encrypted_data_ptr = data.data() + NONCE_LEN;
+    const auto tag_ptr = data.data() + data.size_bytes() - TAG_LEN;
+    const auto encrypted_data_size = data.size_bytes() - NONCE_LEN - TAG_LEN;
+
+    std::unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_DELETER> cipher_context(
+        EVP_CIPHER_CTX_new()
+    );
+    if(!cipher_context)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    if(EVP_DecryptInit_ex(
+        cipher_context.get(),
+        EVP_chacha20_poly1305(),
+        nullptr,
+        nullptr,
+        nullptr
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    if(EVP_CIPHER_CTX_ctrl(
+        cipher_context.get(),
+        EVP_CTRL_AEAD_SET_IVLEN,
+        NONCE_LEN,
+        nullptr
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    if(EVP_DecryptInit_ex(
+        cipher_context.get(),
+        nullptr,
+        nullptr,
+        reinterpret_cast<const unsigned char*>(encryption_key_.data()),
+        reinterpret_cast<const unsigned char*>(nonce_ptr)
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    std::vector<std::byte> output_data(encrypted_data_size);
+    int decrypted_bytes = 0;
+    if(EVP_DecryptUpdate(
+        cipher_context.get(),
+        reinterpret_cast<unsigned char*>(output_data.data()),
+        &decrypted_bytes,
+        reinterpret_cast<const unsigned char*>(encrypted_data_ptr),
+        static_cast<int>(encrypted_data_size)
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    // проверка тега. если тег не совпал, то возращается 0
+    // (означает что данные поверждены, подделаны или неверный ключ)
+    if(EVP_CIPHER_CTX_ctrl(
+        cipher_context.get(),
+        EVP_CTRL_AEAD_SET_TAG,
+        TAG_LEN,
+        const_cast<std::byte*>(tag_ptr)
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    int final_bytes = 0;
+    if(EVP_DecryptFinal_ex(
+        cipher_context.get(),
+        nullptr,
+        &final_bytes
+    ) != 1)
+    // в будущем поменять возращаемую ошибку
+        return std::unexpected(
+            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+        );
+    
+    return output_data;
 }
