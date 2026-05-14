@@ -11,7 +11,7 @@ ProtoHopZ::ProtoHopZ(
     cwnd_(socket_.get_executor(), 1.0)
 {}
 
-void ProtoHopZ::start()
+void ProtoHopZ::start_loops()
 {
     auto executor = socket_.get_executor();
 
@@ -32,11 +32,13 @@ void ProtoHopZ::start()
             boost::asio::detached
         )
     );
+
+    loops_started = true;
 }
 
-void ProtoHopZ::stop()
+void ProtoHopZ::stop_loops()
 {
-    // в будущем переписать stop() так, чтобы отправлялись все пакеты из in_flight_,
+    // в будущем переписать stop_loops() так, чтобы отправлялись все пакеты из in_flight_,
     // и только после этого все завершалось
     
     boost::system::error_code ec;
@@ -59,6 +61,64 @@ void ProtoHopZ::stop()
     };
 
     received_packets_queue_.push(std::move(end_packet));
+
+    loops_started = false;
+}
+
+boost::asio::awaitable<boost::system::error_code>
+ProtoHopZ::handshake()
+{
+    if(!loops_started)
+    {
+        std::cerr << "ProtoHopZ: loops not running\n";
+        co_return boost::system::errc::make_error_code(
+            boost::system::errc::operation_canceled
+        );
+    }
+    auto ec = crypto_context_.init();
+    if(ec)
+        co_return ec;
+
+    auto self_public_key = crypto_context_.get_own_public_key();
+
+    PHZ::Packet self_handshake_packet =
+    {
+        .header =
+        {
+            .type = PHZ::PacketType::HANDSHAKE,
+            .flags = {},
+            .size = 0,
+            .sequence = 0 // устанавливается в send_packet
+        }
+    };
+
+    std::memcpy(self_handshake_packet.data, self_public_key.data(), X25519_LEN);
+
+    ec = co_await send_packet(&self_handshake_packet);
+    if(ec)
+        co_return ec;
+
+    PHZ::Packet peer_handshake_packet;
+    ec = co_await receive_packet(&peer_handshake_packet);
+    if(ec)
+        co_return ec;
+   
+    if(peer_handshake_packet.header.size != X25519_LEN)
+        co_return boost::system::errc::make_error_code(
+            boost::system::errc::bad_message
+        );
+    
+    std::span<std::byte, X25519_LEN> peer_public_key(
+        reinterpret_cast<std::byte*>(peer_handshake_packet.data),
+        X25519_LEN
+    );
+
+    ec = crypto_context_.set_peer_public_key(peer_public_key);
+    if(ec)
+        co_return ec;
+    
+    connection_encrypted_ = true;
+    co_return ec;
 }
 
 boost::asio::awaitable<boost::system::error_code>
