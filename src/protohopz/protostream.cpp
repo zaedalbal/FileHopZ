@@ -83,12 +83,12 @@ boost::asio::awaitable<void> ProtoStream::close()
 
     loops_running_ = false;
     cancellation_signal_receive_chunks_loop_.emit(boost::asio::cancellation_type::all);
-    transport_.stop();
+    transport_.stop_loops();
 }
 
 void ProtoStream::start_loops()
 {
-        transport_.start();
+        transport_.start_loops();
 
         loops_running_ = true;
 
