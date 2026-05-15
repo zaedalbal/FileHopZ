@@ -118,6 +118,7 @@ ProtoHopZ::handshake()
         co_return ec;
     
     connection_encrypted_ = true;
+    std::cout << "handshake successful\n";
     co_return ec;
 }
 
@@ -142,6 +143,23 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
 
     auto packet = *source;
     packet.header.sequence = sequence_counter_++;
+
+    if(connection_encrypted_)
+    {
+        std::span<std::byte> data_to_encrypt(
+            reinterpret_cast<std::byte*>(packet.data),
+            packet.header.size
+        );
+
+        auto result = crypto_context_.encrypt_data(data_to_encrypt);
+        if(!result)
+            co_return boost::system::errc::make_error_code(
+                boost::system::errc::bad_address
+            );
+
+        std::memcpy(packet.data, result.value().data(), result.value().size());
+        packet.header.size = result.value().size();
+    }
 
     co_await socket_.async_send_to(
         boost::asio::buffer(
@@ -236,11 +254,36 @@ ProtoHopZ::receive_loop()
 
             case PHZ::PacketType::DATA :
             {
+                if(packet.header.size > PHZ::PACKET_SIZE)
+                {
+                    std::cerr << "data size > PACKET_SIZE\n";
+                    co_return boost::system::errc::make_error_code(
+                        boost::system::errc::bad_message
+                    );
+                }
+
                 co_await send_ack(packet.header.sequence);
 
                 if(received_packets_.contains(packet.header.sequence))
                     continue;
+                if(connection_encrypted_)
+                {
+                    std::span<std::byte> data_to_decrypt(
+                        reinterpret_cast<std::byte*>(packet.data),
+                        packet.header.size
+                    );
+                    
+                    auto result = crypto_context_.decrypt_data(data_to_decrypt);
+                    if(!result)
+                    {
+                        std::cerr << "decrypt error\n";
+                        co_return boost::system::errc::make_error_code(
+                            boost::system::errc::bad_address
+                        );
+                    }
 
+                    std::memcpy(packet.data, result.value().data(), result.value().size());
+                }
                 received_packets_.insert(packet.header.sequence);
                 received_packets_queue_.push(std::move(packet));
 
