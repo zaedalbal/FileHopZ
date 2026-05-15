@@ -52,10 +52,11 @@ class ProtoHopZ
 
         double bandwidth_bytes_per_second = 0.0;
         double sshthresh_ = 64.0;
-        Async_value<double> cwnd_; //= 1.0;
 
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint peer_endpoint_;
+
+        Async_value<double> cwnd_; //= 1.0;
 
         boost::asio::cancellation_signal cancellation_signal_receive_loop;
         boost::asio::cancellation_signal cancellation_signal_timeout_loop;

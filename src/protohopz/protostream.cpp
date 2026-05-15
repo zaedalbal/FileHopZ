@@ -18,7 +18,11 @@ boost::asio::awaitable<boost::system::error_code>
 ProtoStream::send(std::span<const std::byte> data)
 {
     if(!loops_running_)
-        start_loops();
+    {
+        auto ec = co_await start_loops();
+        if(ec)
+            co_return ec;
+    }
 
     if(data.size() > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
         co_return boost::system::errc::make_error_code(boost::system::errc::message_size);
@@ -43,7 +47,11 @@ boost::asio::awaitable<ProtoStream::Chunk>
 ProtoStream::receive()
 {
     if(!loops_running_)
-        start_loops();
+    {
+        auto ec = co_await start_loops();
+        if(ec)
+            co_return Chunk();
+    }
 
     boost::system::error_code ec;
 
@@ -86,20 +94,27 @@ boost::asio::awaitable<void> ProtoStream::close()
     transport_.stop_loops();
 }
 
-void ProtoStream::start_loops()
+boost::asio::awaitable<boost::system::error_code>
+ProtoStream::start_loops()
 {
-        transport_.start_loops();
+    transport_.start_loops();
 
-        loops_running_ = true;
+    auto ec = co_await transport_.handshake();
+    if(ec)
+        co_return ec;
 
-        boost::asio::co_spawn(
-            executor_,
-            receive_chunks_loop(),
-            boost::asio::bind_cancellation_slot(
-                cancellation_signal_receive_chunks_loop_.slot(),
-                boost::asio::detached
-            )
-        );
+    loops_running_ = true;
+
+    boost::asio::co_spawn(
+        executor_,
+        receive_chunks_loop(),
+        boost::asio::bind_cancellation_slot(
+            cancellation_signal_receive_chunks_loop_.slot(),
+            boost::asio::detached
+        )
+    );
+
+    co_return ec;
 }
 
 boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()

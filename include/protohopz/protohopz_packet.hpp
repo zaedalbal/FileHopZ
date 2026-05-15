@@ -4,7 +4,9 @@
 
 namespace PHZ
 {
-    constexpr std::size_t PACKET_SIZE = 1400;
+    constexpr std::size_t CRYPT_INFO_SIZE = 8;
+    constexpr std::size_t PACKET_SIZE = 1408;
+    constexpr std::size_t PACKET_PAYLOAD_SIZE = PACKET_SIZE - CRYPT_INFO_SIZE;
     constexpr std::chrono::milliseconds TIMEOUT(128); // в миллисекундах
 
     enum PacketType : uint8_t

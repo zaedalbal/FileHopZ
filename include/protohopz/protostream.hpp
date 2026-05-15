@@ -51,7 +51,8 @@ class ProtoStream
         boost::asio::awaitable<void> close();
 
     private:
-        void start_loops();
+        boost::asio::awaitable<boost::system::error_code>
+        start_loops();
 
         boost::asio::awaitable<void> receive_chunks_loop();
 

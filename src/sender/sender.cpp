@@ -133,7 +133,7 @@ Sender::path_handler(const std::filesystem::path& file)
                 packet.header.file_id = file_id;
                 packet.header.type = PacketType::FILE_DATA;
                 
-                file_stream.read(packet.data, PACKET_SIZE);
+                file_stream.read(packet.data, PHZ::PACKET_PAYLOAD_SIZE);
                 bytes_read = file_stream.gcount();
                 packet.header.size = bytes_read;
 
@@ -142,7 +142,7 @@ Sender::path_handler(const std::filesystem::path& file)
                     co_return ec;
 
             }
-            while(bytes_read == PACKET_SIZE);
+            while(bytes_read == PHZ::PACKET_PAYLOAD_SIZE);
 
             Packet packet;
             packet.header.file_id = file_id;

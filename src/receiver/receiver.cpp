@@ -31,6 +31,10 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
 {
     boost::system::error_code ec;
     auto chunk = co_await protostream_.receive();
+    if(chunk.empty())
+        co_return boost::system::errc::make_error_code(
+            boost::system::errc::bad_address
+        );
 
     Packet packet;
 
