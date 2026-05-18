@@ -36,9 +36,11 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             boost::system::errc::bad_address
         );
 
-    Packet packet;
+    if(chunk.size_ < sizeof(PacketHeader))
+        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
-    std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
+    Packet packet{};
+    std::memcpy(&packet, chunk.data_.get(), chunk.size_);
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
 
     std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
@@ -60,7 +62,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
                 },
             };
 
-            ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
+            ec = co_await protostream_.send(Packet::as_bytes(confirm_packet));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
@@ -82,7 +84,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
                 },
             };
 
-            ec = co_await protostream_.send(std::as_bytes(std::span{&confirm_packet, 1}));
+            ec = co_await protostream_.send(Packet::as_bytes(confirm_packet));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
@@ -100,8 +102,11 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
     {
         auto chunk = co_await protostream_.receive();
 
-        Packet packet;
-        std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
+        if(chunk.size_ < sizeof(PacketHeader))
+            co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+
+        Packet packet{};
+        std::memcpy(&packet, chunk.data_.get(), chunk.size_);
 
         auto ec = handle_packet(std::move(packet));
         if(ec)
