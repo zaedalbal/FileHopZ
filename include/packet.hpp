@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <span>
+#include <cstring>
 #include "protohopz/protohopz_packet.hpp"
 
 enum PacketType : uint8_t
@@ -30,12 +32,25 @@ struct PacketHeader
     uint32_t file_id;
 };
 
-constexpr std::size_t PACKET_SIZE = PHZ::PACKET_SIZE - sizeof(PacketHeader);
+constexpr std::size_t PACKET_SIZE = PHZ::PACKET_PAYLOAD_SIZE - sizeof(PacketHeader);
 
 struct Packet
 {
     PacketHeader header;
     char data[PACKET_SIZE];
+
+    static constexpr std::size_t serialized_size(const Packet& packet)
+    {
+        return sizeof(PacketHeader) + packet.header.size;
+    }
+
+    static std::span<const std::byte> as_bytes(const Packet& packet)
+    {
+        return std::as_bytes(std::span(
+            reinterpret_cast<const std::byte*>(&packet),
+            serialized_size(packet)
+        ));
+    }
 
     boost::system::error_code set_payload(const void* src, std::size_t size)
     {

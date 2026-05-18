@@ -33,7 +33,7 @@ Sender::transfer_confirmation()
     Packet packet;
     packet.set_payload(&bytes_to_transfer_, sizeof(bytes_to_transfer_));
 
-    ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
+    ec = co_await protostream_.send(Packet::as_bytes(packet));
     if(ec)
     {
         std::cerr << ec.message() << "\n";
@@ -41,7 +41,11 @@ Sender::transfer_confirmation()
     }
 
     auto chunk = co_await protostream_.receive();
-    std::memcpy(&packet, chunk.data_.get(), sizeof(packet));
+    if(chunk.size_ < sizeof(PacketHeader))
+        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+
+    packet = {};
+    std::memcpy(&packet, chunk.data_.get(), chunk.size_);
 
     if(packet.header.type == PacketType::CONFIRM)
         co_return co_await start_transfer();
@@ -73,7 +77,7 @@ Sender::start_transfer()
         }
     };
 
-    auto ec = co_await protostream_.send(std::as_bytes(std::span{&end_transfer_packet, 1}));
+    auto ec = co_await protostream_.send(Packet::as_bytes(end_transfer_packet));
     if(ec)
         co_return ec;
 
@@ -91,14 +95,14 @@ Sender::path_handler(const std::filesystem::path& file)
        case std::filesystem::file_type::directory:
        {
             auto file_id = file_id_counter_++;
-            auto string_path = file.string();
+            auto relative_path = file_walker_.relative_path().string();
 
             Packet packet;
             packet.header.file_id = file_id;
             packet.header.type = PacketType::CREATE_DIRECTORY;
-            packet.set_payload(string_path.data(), string_path.size());
+            packet.set_payload(relative_path.data(), relative_path.size());
 
-            auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
+            auto ec = co_await protostream_.send(Packet::as_bytes(packet));
             if(ec)
                 co_return ec;
 
@@ -114,7 +118,6 @@ Sender::path_handler(const std::filesystem::path& file)
                 );
             
             auto file_id = file_id_counter_++;
-            auto string_path = file.string();
             std::size_t bytes_read = 0;
             auto relative_path = file_walker_.relative_path().string();
             
@@ -123,7 +126,7 @@ Sender::path_handler(const std::filesystem::path& file)
             packet_create_file.header.type = PacketType::CREATE_FILE;
             packet_create_file.header.file_id = file_id;
 
-            auto error = co_await protostream_.send(std::as_bytes(std::span{&packet_create_file, 1}));
+            auto error = co_await protostream_.send(Packet::as_bytes(packet_create_file));
             if(error)
                 co_return error;
 
@@ -133,23 +136,23 @@ Sender::path_handler(const std::filesystem::path& file)
                 packet.header.file_id = file_id;
                 packet.header.type = PacketType::FILE_DATA;
                 
-                file_stream.read(packet.data, PHZ::PACKET_PAYLOAD_SIZE);
+                file_stream.read(packet.data, PACKET_SIZE);
                 bytes_read = file_stream.gcount();
-                packet.header.size = bytes_read;
+                packet.header.size = static_cast<uint16_t>(bytes_read);
 
-                auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
+                auto ec = co_await protostream_.send(Packet::as_bytes(packet));
                 if(ec)
                     co_return ec;
 
             }
-            while(bytes_read == PHZ::PACKET_PAYLOAD_SIZE);
+            while(bytes_read == PACKET_SIZE);
 
             Packet packet;
             packet.header.file_id = file_id;
             packet.header.size = 0;
             packet.header.type = PacketType::END_FILE;
             
-            auto ec = co_await protostream_.send(std::as_bytes(std::span{&packet, 1}));
+            auto ec = co_await protostream_.send(Packet::as_bytes(packet));
             if(ec)
                 co_return ec;
 

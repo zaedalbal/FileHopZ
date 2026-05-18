@@ -26,7 +26,7 @@ File_transfer::File_transfer(
             boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0)
         ),
         boost::asio::ip::udp::endpoint(
-            boost::asio::ip::address::from_string(peer_adress),
+            boost::asio::ip::make_address(peer_adress),
             peer_port
         )
     )

@@ -24,7 +24,7 @@ ProtoStream::send(std::span<const std::byte> data)
             co_return ec;
     }
 
-    if(data.size() > PHZ::PACKET_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
+    if(data.size() > PHZ::PACKET_PAYLOAD_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
         co_return boost::system::errc::make_error_code(boost::system::errc::message_size);
     
     PHZ::Packet packet =
@@ -38,7 +38,7 @@ ProtoStream::send(std::span<const std::byte> data)
         }
     };
 
-    std::memcpy(packet.data, data.data(), packet.header.size);
+    std::memcpy(packet.payload, data.data(), packet.header.size);
 
     co_return co_await transport_.send_packet(&packet);
 }
@@ -169,7 +169,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
             if(it == packets_buffer.end())
                 break;
             
-            ready_chunks_.push(ProtoStream::Chunk(it->second.data, it->second.header.size));
+            ready_chunks_.push(ProtoStream::Chunk(it->second.payload, it->second.header.size));
             packets_buffer.erase(it);
             ++expected_sequence;
         }

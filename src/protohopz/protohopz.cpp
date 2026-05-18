@@ -87,12 +87,12 @@ ProtoHopZ::handshake()
         {
             .type = PHZ::PacketType::HANDSHAKE,
             .flags = {},
-            .size = 0,
+            .size = X25519_LEN,
             .sequence = 0 // устанавливается в send_packet
         }
     };
 
-    std::memcpy(self_handshake_packet.data, self_public_key.data(), X25519_LEN);
+    std::memcpy(self_handshake_packet.payload, self_public_key.data(), X25519_LEN);
 
     ec = co_await send_packet(&self_handshake_packet);
     if(ec)
@@ -109,7 +109,7 @@ ProtoHopZ::handshake()
         );
     
     std::span<std::byte, X25519_LEN> peer_public_key(
-        reinterpret_cast<std::byte*>(peer_handshake_packet.data),
+        reinterpret_cast<std::byte*>(peer_handshake_packet.payload),
         X25519_LEN
     );
 
@@ -146,8 +146,13 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
 
     if(connection_encrypted_)
     {
+        if(packet.header.size > PHZ::PACKET_PAYLOAD_SIZE)
+            co_return boost::system::errc::make_error_code(
+                boost::system::errc::message_size
+            );
+
         std::span<std::byte> data_to_encrypt(
-            reinterpret_cast<std::byte*>(packet.data),
+            reinterpret_cast<std::byte*>(packet.payload),
             packet.header.size
         );
 
@@ -157,8 +162,13 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
                 boost::system::errc::bad_address
             );
 
-        std::memcpy(packet.data, result.value().data(), result.value().size());
-        packet.header.size = result.value().size();
+        if(result.value().size() > PHZ::PACKET_SIZE)
+            co_return boost::system::errc::make_error_code(
+                boost::system::errc::message_size
+            );
+
+        std::memcpy(PHZ::payload_region(packet), result.value().data(), result.value().size());
+        packet.header.size = static_cast<uint16_t>(result.value().size());
     }
 
     co_await socket_.async_send_to(
@@ -269,7 +279,7 @@ ProtoHopZ::receive_loop()
                 if(connection_encrypted_)
                 {
                     std::span<std::byte> data_to_decrypt(
-                        reinterpret_cast<std::byte*>(packet.data),
+                        reinterpret_cast<std::byte*>(PHZ::payload_region(packet)),
                         packet.header.size
                     );
                     
@@ -282,8 +292,30 @@ ProtoHopZ::receive_loop()
                         );
                     }
 
-                    std::memcpy(packet.data, result.value().data(), result.value().size());
+                    packet.header.size = result.value().size();
+                    std::memcpy(packet.payload, result.value().data(), packet.header.size);
                 }
+                received_packets_.insert(packet.header.sequence);
+                received_packets_queue_.push(std::move(packet));
+
+                break;
+            }
+
+            case PHZ::PacketType::HANDSHAKE :
+            {
+                if(packet.header.size > PHZ::PACKET_SIZE)
+                {
+                    std::cerr << "data size > PACKET_SIZE\n";
+                    co_return boost::system::errc::make_error_code(
+                        boost::system::errc::bad_message
+                    );
+                }
+
+                co_await send_ack(packet.header.sequence);
+
+                if(received_packets_.contains(packet.header.sequence))
+                    continue;
+
                 received_packets_.insert(packet.header.sequence);
                 received_packets_queue_.push(std::move(packet));
 
