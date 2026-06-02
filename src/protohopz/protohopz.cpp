@@ -176,6 +176,7 @@ ProtoHopZ::handshake_responder()
     if(ec)
         co_return ec;
 
+    connection_encrypted_ = true;
     std::cout << "handshake successful\n";
     co_return ec;
 }
