@@ -136,7 +136,8 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
     boost::system::error_code ec;
     std::unordered_map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
     decltype(PHZ::PacketHeader::sequence) expected_sequence = 0;
-    
+    bool first_data_packet = true;
+
     while(true)
     {
         PHZ::Packet packet;
@@ -144,6 +145,19 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
         ec = co_await transport_.receive_packet(&packet);
         if(ec)
             co_return;
+
+        if(packet.header.type != PHZ::PacketType::DATA)
+        {
+            // в будущем сделать обработчик пакетов
+            std::cout << "skip packet in receive_chunks_loop\n";
+            continue;
+        }
+
+        if(first_data_packet)
+        {
+            expected_sequence = packet.header.sequence;
+            first_data_packet = false;
+        }
 
         if(packet.header.sequence < expected_sequence)
             continue;
@@ -153,13 +167,6 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
             co_await close();
             std::cerr <<  "Out of sequnce window: possible mailicious input\n";
             co_return;
-        }
- 
-        if(packet.header.type != PHZ::PacketType::DATA)
-        {
-            // в будущем сделать обработчик пакетов
-            std::cout << "skip packet in receive_chunks_loop\n";
-            continue;
         }
 
         if(packets_buffer.contains(packet.header.sequence))
@@ -171,7 +178,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
             std::cerr <<  "Buffer overflow: possible malicious input\n";
             co_return;
         }
-        
+
         packets_buffer.emplace(packet.header.sequence, std::move(packet));
 
         while(true)
@@ -179,7 +186,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
             auto it = packets_buffer.find(expected_sequence);
             if(it == packets_buffer.end())
                 break;
-            
+
             ready_chunks_.push(ProtoStream::Chunk(it->second.payload, it->second.header.size));
             packets_buffer.erase(it);
             ++expected_sequence;
