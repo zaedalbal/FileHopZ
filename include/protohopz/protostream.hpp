@@ -6,6 +6,12 @@
 class ProtoStream
 {
     public:
+        enum HANDSHAKE_MODE : bool
+        {
+            INITIATOR,
+            RESPONDER
+        };
+
         struct Chunk
         {
             explicit Chunk()
@@ -33,11 +39,15 @@ class ProtoStream
             std::unique_ptr<char[]> data_;
         };
 
-        explicit ProtoStream(boost::asio::ip::udp::socket socket);
+        explicit ProtoStream(
+            boost::asio::ip::udp::socket socket,
+            HANDSHAKE_MODE handshake_mode
+        );
 
         explicit ProtoStream(
             boost::asio::ip::udp::socket socket,
-            boost::asio::ip::udp::endpoint peer_endpoint
+            boost::asio::ip::udp::endpoint peer_endpoint,
+            HANDSHAKE_MODE handshake_mode
         );
 
         ProtoStream(const ProtoStream&) = delete;
@@ -57,6 +67,8 @@ class ProtoStream
         boost::asio::awaitable<void> receive_chunks_loop();
 
     private:
+        HANDSHAKE_MODE handshake_mode_;
+        
         boost::asio::any_io_executor executor_;
 
         ProtoHopZ transport_;

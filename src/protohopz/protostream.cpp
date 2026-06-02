@@ -2,14 +2,20 @@
 #include <iostream>
 #include <map>
 
-ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket)
-:   executor_(socket.get_executor()),
+ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, HANDSHAKE_MODE handshake_mode)
+:   handshake_mode_(handshake_mode),
+    executor_(socket.get_executor()),
     transport_(std::move(socket), boost::asio::ip::udp::endpoint()),
     ready_chunks_(executor_)
 {}
 
-ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, boost::asio::ip::udp::endpoint peer_endpoint)
-:   executor_(socket.get_executor()),
+ProtoStream::ProtoStream(
+    boost::asio::ip::udp::socket socket,
+    boost::asio::ip::udp::endpoint peer_endpoint,
+    HANDSHAKE_MODE handshake_mode
+)
+:   handshake_mode_(handshake_mode),
+    executor_(socket.get_executor()),
     transport_(std::move(socket), std::move(peer_endpoint)),
     ready_chunks_(executor_)
 {}
@@ -99,7 +105,12 @@ ProtoStream::start_loops()
 {
     transport_.start_loops();
 
-    auto ec = co_await transport_.handshake();
+    boost::system::error_code ec;
+    if(handshake_mode_ == INITIATOR)
+        ec = co_await transport_.handshake_initiator();
+    else
+        ec = co_await transport_.handshake_responder();
+
     if(ec)
         co_return ec;
 

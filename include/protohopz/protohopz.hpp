@@ -21,7 +21,10 @@ class ProtoHopZ
         void stop_loops(); // метод для остановки receive_loop и timeout_loop
 
         boost::asio::awaitable<boost::system::error_code>
-        handshake();
+        handshake_initiator();
+
+        boost::asio::awaitable<boost::system::error_code>
+        handshake_responder();
 
         boost::asio::awaitable<boost::system::error_code>
         send_packet(const PHZ::Packet* source);
