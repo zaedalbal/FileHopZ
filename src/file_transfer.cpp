@@ -10,7 +10,8 @@ File_transfer::File_transfer(
         boost::asio::ip::udp::socket(
             context_, 
             boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), port)
-        )
+        ),
+        ProtoStream::HANDSHAKE_MODE::RESPONDER
     )
 {}
 
@@ -28,7 +29,8 @@ File_transfer::File_transfer(
         boost::asio::ip::udp::endpoint(
             boost::asio::ip::make_address(peer_adress),
             peer_port
-        )
+        ),
+        ProtoStream::HANDSHAKE_MODE::INITIATOR
     )
 {}
 
