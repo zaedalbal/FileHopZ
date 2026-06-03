@@ -130,13 +130,11 @@ ProtoStream::start_loops()
 
 boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
 {
-    constexpr int BUFFER_SIZE = 1024;
-    constexpr int SEQUENCE_WINDOW_SIZE = 4096;
+    constexpr int SEQUENCE_WINDOW_SIZE = 65536;
 
     boost::system::error_code ec;
     std::unordered_map<decltype(PHZ::PacketHeader::sequence), PHZ::Packet> packets_buffer;
-    decltype(PHZ::PacketHeader::sequence) expected_sequence = 0;
-    bool first_data_packet = true;
+    decltype(PHZ::PacketHeader::sequence) expected_sequence = 1;
 
     while(true)
     {
@@ -153,31 +151,14 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
             continue;
         }
 
-        if(first_data_packet)
-        {
-            expected_sequence = packet.header.sequence;
-            first_data_packet = false;
-        }
-
         if(packet.header.sequence < expected_sequence)
             continue;
 
         if(packet.header.sequence > expected_sequence + SEQUENCE_WINDOW_SIZE)
-        {
-            co_await close();
-            std::cerr <<  "Out of sequnce window: possible mailicious input\n";
-            co_return;
-        }
+            continue; // пакет вне окна - отправитель переотправит после таймаута
 
         if(packets_buffer.contains(packet.header.sequence))
             continue; // скип дубликатов
-
-        if(packets_buffer.size() > BUFFER_SIZE)
-        {
-            co_await close();
-            std::cerr <<  "Buffer overflow: possible malicious input\n";
-            co_return;
-        }
 
         packets_buffer.emplace(packet.header.sequence, std::move(packet));
 
