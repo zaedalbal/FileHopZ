@@ -28,7 +28,9 @@ class Async_value
                     self->value_ = std::move(value);
                     ++self->version_;
 
-                    for(auto& w : self->waiters_)
+                    auto waiters = std::move(self->waiters_);
+
+                    for(auto& w : waiters)
                     {
                         auto ex = boost::asio::get_associated_executor(
                             w->handler,
@@ -43,8 +45,6 @@ class Async_value
                             }
                         );
                     }
-
-                    self->waiters_.clear();
                 }
             );
         }
