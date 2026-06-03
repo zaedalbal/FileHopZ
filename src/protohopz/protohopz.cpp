@@ -187,7 +187,7 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     boost::system::error_code ec;
     auto executor = co_await boost::asio::this_coro::executor;
 
-    while(in_flight_.size() > static_cast<std::size_t>(cwnd_.get()))
+    while(in_flight_.size() >= static_cast<std::size_t>(cwnd_.get()))
     {
         co_await cwnd_.wait(
             boost::asio::redirect_error(
