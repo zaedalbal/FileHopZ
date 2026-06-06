@@ -457,7 +457,8 @@ void ProtoHopZ::send_ack(uint32_t sequence)
             sizeof(PHZ::PacketHeader)
         ),
         peer_endpoint_,
-        boost::asio::detached
+        // захват packet
+        [packet](boost::system::error_code, std::size_t){}
     );
 }
 
