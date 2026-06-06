@@ -293,7 +293,10 @@ ProtoHopZ::resend_packet(uint32_t sequense)
         boost::asio::redirect_error(boost::asio::use_awaitable, ec)
     );
 
-    it->second.send_time = std::chrono::steady_clock::now();
+    // во время co_await пакет мог быть ACK'нут
+    it = in_flight_.find(sequense);
+    if(it != in_flight_.end())
+        it->second.send_time = std::chrono::steady_clock::now();
 
     co_return ec;
 }
