@@ -1,5 +1,7 @@
 #include "protohopz/protohopz.hpp"
+#include <boost/asio/detached.hpp>
 #include <iostream>
+#include <memory>
 
 ProtoHopZ::ProtoHopZ(
     boost::asio::ip::udp::socket socket,
@@ -331,7 +333,7 @@ ProtoHopZ::receive_loop()
                     );
                 }
 
-                co_await send_ack(packet.header.sequence);
+                send_ack(packet.header.sequence);
 
                 if(received_packets_.contains(packet.header.sequence))
                     continue;
@@ -370,7 +372,7 @@ ProtoHopZ::receive_loop()
                     );
                 }
 
-                co_await send_ack(packet.header.sequence);
+                send_ack(packet.header.sequence);
 
                 if(received_packets_.contains(packet.header.sequence))
                     continue;
@@ -420,13 +422,11 @@ ProtoHopZ::timeout_loop()
     co_return ec;
 }
 
-boost::asio::awaitable<boost::system::error_code>
-ProtoHopZ::send_ack(uint32_t sequence)
+void ProtoHopZ::send_ack(uint32_t sequence)
 {
     boost::system::error_code ec;
 
-    PHZ::Packet packet =
-    {
+    auto packet = std::make_shared<PHZ::Packet>(PHZ::Packet{
         .header =
         {
             .type = PHZ::PacketType::ACK,
@@ -434,21 +434,16 @@ ProtoHopZ::send_ack(uint32_t sequence)
             .size = 0,
             .sequence = sequence
         }
-    };
+    });
 
-    co_await socket_.async_send_to(
+    socket_.async_send_to(
         boost::asio::buffer(
-            &packet,
-            sizeof(PHZ::PacketHeader) + packet.header.size
+            packet.get(),
+            sizeof(PHZ::PacketHeader)
         ),
         peer_endpoint_,
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+        boost::asio::detached
     );
-
-    if(ec) // проверка, если в будущем что то будет ещё добавляться
-        co_return ec;
-
-    co_return ec;
 }
 
 void ProtoHopZ::ack_handler(uint32_t sequence)

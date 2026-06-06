@@ -42,8 +42,7 @@ class ProtoHopZ
         boost::asio::awaitable<boost::system::error_code>
         timeout_loop();
 
-        boost::asio::awaitable<boost::system::error_code>
-        send_ack(uint32_t sequence);
+        void send_ack(uint32_t sequence);
 
         void ack_handler(uint32_t sequence);
 
