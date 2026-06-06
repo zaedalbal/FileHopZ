@@ -2,6 +2,7 @@
 #include <boost/asio/detached.hpp>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 ProtoHopZ::ProtoHopZ(
     boost::asio::ip::udp::socket socket,
@@ -397,17 +398,28 @@ ProtoHopZ::timeout_loop()
     {
         auto now = std::chrono::steady_clock::now();
 
-        for(auto& [seq, packet] : in_flight_)
-        {
-            if(now - packet.send_time > PHZ::TIMEOUT)
-            {
-                sshthresh_ = cwnd_.get() / 2.0;
-                cwnd_.set(1.0);
+        std::vector<uint32_t> timed_out;
 
-                ec = co_await resend_packet(seq);
-                if(ec)
-                    co_return ec;
-            }
+        for(const auto& [seq, pkt] : in_flight_)
+        {
+            if(now - pkt.send_time > PHZ::TIMEOUT)
+                timed_out.push_back(seq);
+        }
+
+        if(!timed_out.empty())
+        {
+            sshthresh_ = std::max(cwnd_.get() / 2.0, 2.0);
+            cwnd_.set(1.0);
+        }
+
+        for(uint32_t seq : timed_out)
+        {
+            if(!in_flight_.contains(seq))
+                continue;
+
+            ec = co_await resend_packet(seq);
+            if(ec)
+                co_return ec;
         }
 
         timer.expires_after(std::chrono::milliseconds(10));
@@ -448,7 +460,9 @@ void ProtoHopZ::send_ack(uint32_t sequence)
 
 void ProtoHopZ::ack_handler(uint32_t sequence)
 {
-    in_flight_.erase(sequence);
+    auto erased = in_flight_.erase(sequence);
+    // проверка на уже подтвержденные пакеты
+    if(!erased) return;
 
     if(cwnd_.get() < sshthresh_)
         cwnd_.set(cwnd_.get() * 2);
