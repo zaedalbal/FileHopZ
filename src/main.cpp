@@ -2,11 +2,16 @@
 #include <boost/asio.hpp>
 #include <fstream>
 #include <charconv>
-#include <sender/sender.hpp>
-#include <receiver/receiver.hpp>
+#include "sender/sender.hpp"
+#include "receiver/receiver.hpp"
+#include "logger/logger.hpp"
+#include <spdlog/spdlog.h>
 
 int main(int argc, char* argv[])
 {
+    logger::init();
+    SPDLOG_INFO("logger init");
+
     if(argc < 2)
     {
         std::cout << "Usage:\n";
