@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Boost REQUIRED COMPONENTS filesystem system thread)
 find_package(OpenSSL REQUIRED)
+find_package(spdlog REQUIRED)
 
 # CONFIGURE_DEPENDS нужен чтобы cmake видел новые .cpp которые добавляются в проект
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
@@ -29,4 +30,5 @@ target_link_libraries(
     Boost::thread
     OpenSSL::Crypto
     OpenSSL::SSL
+    spdlog::spdlog
 )
