@@ -21,6 +21,10 @@ target_compile_options(filehopz PRIVATE
     $<$<CONFIG:Release>: -O2>
 )
 
+target_compile_definitions(filehopz PRIVATE
+    $<$<CONFIG:Debug>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE>
+)
+
 target_include_directories(filehopz PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_link_libraries(
