@@ -253,7 +253,7 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     boost::system::error_code ec;
     auto executor = co_await boost::asio::this_coro::executor;
 
-    SPDLOG_TRACE("ProtoHopZ::send_packet: enter type={} size={}, in_flight={}, cwnd={}",
+    SPDLOG_TRACE("ProtoHopZ::send_packet: called type={} size={}, in_flight={}, cwnd={}",
                  static_cast<int>(source->header.type), source->header.size,
                  in_flight_.size(), cwnd_.get());
 
