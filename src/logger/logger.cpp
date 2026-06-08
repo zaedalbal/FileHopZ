@@ -15,11 +15,11 @@ void logger::init()
 
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 
-    auto file_sync = 
+    auto file_sync =
         std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
             log_path.string(),
-            10 * 1024 * 1024,
-            5
+            1024ULL * 1024 * 1024,
+            3
         );
 
     auto logger =
