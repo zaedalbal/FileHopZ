@@ -49,6 +49,42 @@ class Async_value
             );
         }
 
+        // разбудить ровно одну ожидающую корутину (FIFO) без изменения value_;
+        // используется для rate-based credit'ов: на каждый ACK инкрементируется
+        // кредит, а notify_one() вызывается периодически, чтобы выпустить ровно
+        // столько корутин из wait(), сколько ACK'ов обработано; без этого один
+        // cwnd_.set(...) будит все ожидающие, и они шлют пачку пакетов, раздувая
+        // in_flight_
+        void notify_one()
+        {
+            boost::asio::dispatch(
+                strand_,
+                [self = this]() mutable
+                {
+                    if(self->waiters_.empty())
+                        return;
+
+                    auto waiter = std::move(self->waiters_.front());
+                    self->waiters_.pop_front();
+
+                    auto ex = boost::asio::get_associated_executor(
+                        waiter->handler,
+                        self->strand_
+                    );
+
+                    auto v = self->value_;
+
+                    boost::asio::dispatch(
+                        ex,
+                        [waiter, v = std::move(v)]() mutable
+                        {
+                            waiter->handler(boost::system::error_code{}, std::move(v));
+                        }
+                    );
+                }
+            );
+        }
+
         template <typename CompletionToken = boost::asio::use_awaitable_t<>>
         auto wait(CompletionToken token = {})
         {

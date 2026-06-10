@@ -4,6 +4,7 @@
 #include "utils/async_value.hpp"
 #include "utils/crypto_context.hpp"
 #include <boost/asio.hpp>
+#include <atomic>
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
@@ -19,6 +20,20 @@ class ProtoHopZ
         void start_loops(); // метод для запуска receive_loop и timeout_loop
 
         void stop_loops(); // метод для остановки receive_loop и timeout_loop
+
+        // возвращает количество пакетов сейчас in_flight (отправлено, но не ACK'нуто);
+        // используется в close() для дренажа
+        std::size_t in_flight_count() const noexcept
+        {
+            return in_flight_.size();
+        }
+
+        // дожидается, пока in_flight_ не опустеет, или истечёт таймаут;
+        // возвращает true, если дренаж успешен; false — если пришлось прервать
+        // по таймауту или ошибке
+        boost::asio::awaitable<bool> wait_in_flight_drained(
+            std::chrono::steady_clock::duration timeout
+        );
 
         boost::asio::awaitable<boost::system::error_code>
         handshake_initiator();
@@ -58,7 +73,13 @@ class ProtoHopZ
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint peer_endpoint_;
 
-        Async_value<double> cwnd_; //= 1.0;
+        Async_value<double> cwnd_; //= INITIAL_CWND;
+
+        // кредиты на разморозку корутин из cwnd_.wait(); инкрементируется в
+        // ack_handler, дренируется в timeout_loop через cwnd_.notify_one();
+        // без этого разморозка идёт "одна cwnd_.set(...) → все ожидающие",
+        // что приводит к раздуванию in_flight_
+        std::atomic<std::size_t> cwnd_credits_{0};
 
         boost::asio::cancellation_signal cancellation_signal_receive_loop;
         boost::asio::cancellation_signal cancellation_signal_timeout_loop;

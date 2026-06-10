@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 #include <iostream>
 #include <map>
+#include <chrono>
 
 ProtoStream::ProtoStream(boost::asio::ip::udp::socket socket, HANDSHAKE_MODE handshake_mode)
 :   handshake_mode_(handshake_mode),
@@ -39,7 +40,7 @@ ProtoStream::send(std::span<const std::byte> data)
             co_return ec;
     }
 
-    if(data.size() > PHZ::PACKET_PAYLOAD_SIZE) // в будущем сделать разбиение передаваемых данных на несколько пакетов
+    if(data.size() > PHZ::PACKET_PAYLOAD_SIZE) // в будущем будет разбиение передаваемых данных на несколько пакетов
     {
         spdlog::critical("ProtoStream::send: data size {} > PACKET_PAYLOAD_SIZE {}",
                          data.size(), PHZ::PACKET_PAYLOAD_SIZE);
@@ -58,7 +59,6 @@ ProtoStream::send(std::span<const std::byte> data)
     };
 
     std::memcpy(packet.payload, data.data(), packet.header.size);
-
     SPDLOG_TRACE("ProtoStream::send: forwarding DATA size={} to transport", packet.header.size);
     co_return co_await transport_.send_packet(&packet);
 }
@@ -116,10 +116,39 @@ boost::asio::awaitable<void> ProtoStream::close()
 
     co_await transport_.send_packet(&packet);
 
-    SPDLOG_TRACE("ProtoStream::close: END_TRANSFER sent, stopping loops");
+    SPDLOG_TRACE("ProtoStream::close: END_TRANSFER sent, in_flight={} (draining)",
+                 transport_.in_flight_count());
+
+    // даётся время на приход ACK'ов и заполнение in_flight_, чтобы close() был
+    // корректным завершением, а не "отрезали хвост"; таймаут — 30 секунд
+    auto drained = co_await transport_.wait_in_flight_drained(
+        std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            PHZ::CLOSE_DRAIN_TIMEOUT
+        )
+    );
+
+    SPDLOG_TRACE("ProtoStream::close: drain result={}, in_flight={}",
+                 drained, transport_.in_flight_count());
+
+    // помечается loops_running_ = false до отмены сигналов, чтобы receive_chunks_loop
+    // мог на это опереться в проверке, если в будущем захочется graceful exit
     loops_running_ = false;
+
+    // останавливается приём чанков и затем транспорт
     cancellation_signal_receive_chunks_loop_.emit(boost::asio::cancellation_type::all);
+
+    // дренаж ready_chunks_: после остановки transport-а никто не запишет
+    // новых, но уже лежащие Chunk'и нужно либо вычитать, либо выкинуть;
+    // иначе деструктор Async_queue зависнет на waiters_'е или queue_'е
+    // с миллионами элементов; здесь ничего не вычитывается (receive_chunks_loop
+    // уже отменён), но нужно убедиться, что waiters_ пуст; cancel
+    // выше должен был разбудить все ожидающие waiters'ы; если же кто-то ждёт
+    // в ready_chunks_.pop(), то сейчас он получит operation_aborted;
+    // дополнительной очистки не требуется
+
     transport_.stop_loops();
+
+    SPDLOG_TRACE("ProtoStream::close: done");
 }
 
 boost::asio::awaitable<boost::system::error_code>
@@ -195,7 +224,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
         {
             SPDLOG_TRACE("ProtoStream::receive_chunks_loop: seq={} > expected+window={} (out of window, sender will resend after timeout)",
                          packet.header.sequence, expected_sequence + SEQUENCE_WINDOW_SIZE);
-            continue; // пакет вне окна - отправитель переотправит после таймаута
+            continue; // пакет вне окна — отправитель переотправит после таймаута
         }
 
         if(packets_buffer.contains(packet.header.sequence))
@@ -203,6 +232,17 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
             SPDLOG_TRACE("ProtoStream::receive_chunks_loop: duplicate seq={} in buffer (size={})",
                          packet.header.sequence, packets_buffer.size());
             continue; // скип дубликатов
+        }
+
+        // hard cap: если буфер раздулся (например, sequence прыгнул из-за
+        // потери ACK'ов), буфер сбрасывается и expected_sequence сдвигается
+        // к текущему пакету; это страховка от OOM на стороне получателя
+        if(packets_buffer.size() >= PHZ::MAX_PACKETS_BUFFER)
+        {
+            SPDLOG_CRITICAL("ProtoStream::receive_chunks_loop: packets_buffer exceeded {} ({} entries), resetting to seq={}",
+                            PHZ::MAX_PACKETS_BUFFER, packets_buffer.size(), packet.header.sequence);
+            packets_buffer.clear();
+            expected_sequence = packet.header.sequence;
         }
 
         packets_buffer.emplace(packet.header.sequence, std::move(packet));

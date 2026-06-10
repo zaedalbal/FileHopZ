@@ -16,8 +16,8 @@ ProtoHopZ::ProtoHopZ(
 )
 :   socket_(std::move(socket)),
     peer_endpoint_(std::move(peer_endpoint)),
-    received_packets_queue_(socket_.get_executor()),
-    cwnd_(socket_.get_executor(), 1.0)
+    cwnd_(socket_.get_executor(), PHZ::INITIAL_CWND),
+    received_packets_queue_(socket_.get_executor())
 {
     SPDLOG_TRACE("ProtoHopZ constructed: peer={}:{}",
                  peer_endpoint_.address().to_string(),
@@ -53,7 +53,7 @@ void ProtoHopZ::start_loops()
 void ProtoHopZ::stop_loops()
 {
     // в будущем переписать stop_loops() так, чтобы отправлялись все пакеты из in_flight_,
-    // и только после этого все завершалось
+    // и только после этого всё завершалось
 
     boost::system::error_code ec;
 
@@ -66,6 +66,21 @@ void ProtoHopZ::stop_loops()
     socket_.cancel(ec);
     if(ec)
         SPDLOG_CRITICAL("ProtoHopZ::stop_loops: socket_.cancel failed: {}", ec.message());
+
+    // важно: очищаются in_flight_ и received_packets_ до завершения, чтобы
+    // деструктор ProtoHopZ не сидел в unordered_map::clear() миллионы записей
+    {
+        std::size_t in_flight_size = in_flight_.size();
+        std::size_t seen_size = received_packets_.size();
+        in_flight_.clear();
+        received_packets_.clear();
+        SPDLOG_TRACE("ProtoHopZ::stop_loops: cleared in_flight ({} entries) and received_packets ({} entries)",
+                     in_flight_size, seen_size);
+    }
+
+    // сбрасываются кредиты, чтобы оставшиеся в cwnd_.wait() корутины не получили
+    // ложный notify_one() после ухода протокола
+    cwnd_credits_.store(0, std::memory_order_relaxed);
 
     // разбудить received_packets_queue.pop()
     PHZ::Packet end_packet =
@@ -124,8 +139,7 @@ ProtoHopZ::handshake_initiator()
 
     std::memcpy(self_handshake_packet.payload, self_public_key.data(), X25519_LEN);
 
-    SPDLOG_TRACE("ProtoHopZ::handshake_initiator: sending HANDSHAKE (own pubkey, size={})", X25519_LEN);
-    ec = co_await send_packet(&self_handshake_packet);
+    SPDLOG_TRACE("ProtoHopZ::handshake_initiator: sending HANDSHAKE (own pubkey, size={})", X25519_LEN);    ec = co_await send_packet(&self_handshake_packet);
     if(ec)
     {
         spdlog::critical(ec.message());
@@ -257,10 +271,16 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
                  static_cast<int>(source->header.type), source->header.size,
                  in_flight_.size(), cwnd_.get());
 
-    while(in_flight_.size() >= static_cast<std::size_t>(cwnd_.get()))
+    // двойное условие: ожидается, пока окно (cwnd) или абсолютный предел (MAX_IN_FLIGHT)
+    // не разрешат отправку; MAX_IN_FLIGHT — это страховка на случай, если cwnd
+    // случайно разрастётся (например, после многократных ACK'ов подряд)
+    while(
+        in_flight_.size() >= static_cast<std::size_t>(cwnd_.get()) ||
+        in_flight_.size() >= PHZ::MAX_IN_FLIGHT
+    )
     {
-        SPDLOG_TRACE("ProtoHopZ::send_packet: BLOCKED on cwnd (in_flight={} >= cwnd={}), waiting",
-                     in_flight_.size(), cwnd_.get());
+        SPDLOG_TRACE("ProtoHopZ::send_packet: BLOCKED on cwnd/in_flight (in_flight={} cwnd={} MAX_IN_FLIGHT={}), waiting",
+                     in_flight_.size(), cwnd_.get(), PHZ::MAX_IN_FLIGHT);
         co_await cwnd_.wait(
             boost::asio::redirect_error(
                 boost::asio::use_awaitable,
@@ -592,6 +612,19 @@ ProtoHopZ::timeout_loop()
             }
         }
 
+        // дренаж cwnd_credits_: сколько ACK'ов обработано с прошлой итерации —
+        // столько раз вызывается notify_one(); каждый notify_one() будит ровно одну
+        // корутину из cwnd_.wait(), так на каждый ACK рождается ровно одна
+        // новая отправка, без пачек
+        std::size_t credits = cwnd_credits_.exchange(0, std::memory_order_relaxed);
+        for(std::size_t i = 0; i < credits; ++i)
+            cwnd_.notify_one();
+
+        if(credits > 0)
+        {
+            SPDLOG_TRACE("ProtoHopZ::timeout_loop: drained {} cwnd credits", credits);
+        }
+
         timer.expires_after(std::chrono::milliseconds(10));
         co_await timer.async_wait(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec)
@@ -637,10 +670,61 @@ void ProtoHopZ::send_ack(uint32_t sequence)
     );
 }
 
+boost::asio::awaitable<bool>
+ProtoHopZ::wait_in_flight_drained(std::chrono::steady_clock::duration timeout)
+{
+    auto executor = co_await boost::asio::this_coro::executor;
+    boost::asio::steady_timer timer(executor);
+
+    auto deadline = std::chrono::steady_clock::now() + timeout;
+
+    boost::system::error_code ec;
+
+    // сразу на старте проверяется состояние
+    if(in_flight_.size() == 0)
+        co_return true;
+
+    while(true)
+    {
+        auto now = std::chrono::steady_clock::now();
+        if(now >= deadline)
+        {
+            SPDLOG_TRACE("ProtoHopZ::wait_in_flight_drained: TIMEOUT, in_flight={}",
+                         in_flight_.size());
+            co_return false;
+        }
+
+        if(in_flight_.size() == 0)
+        {
+            SPDLOG_TRACE("ProtoHopZ::wait_in_flight_drained: drained successfully");
+            co_return true;
+        }
+
+        // ожидание до 50 мс или до deadline
+        auto wait_for = std::min(
+            std::chrono::milliseconds(50),
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now)
+        );
+
+        timer.expires_after(wait_for);
+        co_await timer.async_wait(
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+        );
+
+        if(ec == boost::asio::error::operation_aborted)
+        {
+            // кто-то снаружи нас отменил — выходим
+            SPDLOG_TRACE("ProtoHopZ::wait_in_flight_drained: cancelled, in_flight={}",
+                         in_flight_.size());
+            co_return in_flight_.size() == 0;
+        }
+    }
+}
+
 void ProtoHopZ::ack_handler(uint32_t sequence)
 {
     auto erased = in_flight_.erase(sequence);
-    // проверка на уже подтвержденные пакеты
+    // проверка на уже подтверждённые пакеты
     if(!erased)
     {
         SPDLOG_TRACE_PACKET(sequence,
@@ -648,13 +732,33 @@ void ProtoHopZ::ack_handler(uint32_t sequence)
         return;
     }
 
+    // линейный AIMD: за каждый ACK добавляем 1/cwnd (стандартный congestion
+    // avoidance); это держит рост cwnd линейным по числу доставленных байт,
+    // а не по числу ACK'ов
     double prev_cwnd = cwnd_.get();
+    double next_cwnd;
+
     if(cwnd_.get() < sshthresh_)
-        cwnd_.set(cwnd_.get() * 2);
+    {
+        // slow start: всё ещё удваиваем, но ограничиваем сверху
+        next_cwnd = std::min(cwnd_.get() * 2.0, PHZ::MAX_CWND);
+    }
     else
-        cwnd_.set(cwnd_.get() + 1.0);
+    {
+        // congestion avoidance: + 1/cwnd за каждый ACK (AIMD)
+        next_cwnd = std::min(cwnd_.get() + 1.0 / cwnd_.get(), PHZ::MAX_CWND);
+    }
+
+    cwnd_.set(next_cwnd);
+
+    // важно: cwnd обновляется, но ожидающие корутины не будятся через cwnd_.set
+    // (этот метод будит всех, что создаёт пачки отправок); вместо этого —
+    // копится кредит; timeout_loop периодически вызывает cwnd_.notify_one(),
+    // чтобы выпустить ровно столько корутин, сколько обработано ACK'ов
+    cwnd_credits_.fetch_add(1, std::memory_order_relaxed);
 
     SPDLOG_TRACE_PACKET(sequence,
-        "ProtoHopZ::ack_handler: ACKed seq={}, in_flight={}, cwnd {} -> {} (ssthresh={})",
-        sequence, in_flight_.size(), prev_cwnd, cwnd_.get(), sshthresh_);
+        "ProtoHopZ::ack_handler: ACKed seq={}, in_flight={}, cwnd {} -> {} (ssthresh={}), credit={}",
+        sequence, in_flight_.size(), prev_cwnd, cwnd_.get(), sshthresh_,
+        cwnd_credits_.load(std::memory_order_relaxed));
 }

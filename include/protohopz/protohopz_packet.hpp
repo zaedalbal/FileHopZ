@@ -10,9 +10,28 @@ namespace PHZ
     constexpr std::size_t PACKET_SIZE = PACKET_PAYLOAD_SIZE + CRYPT_OVERHEAD; // 1428 < MTU
     constexpr std::chrono::milliseconds TIMEOUT(128); // в миллисекундах
 
+    // начальное окно (slow start); 64 пакета = ~90 КБ — не даётся стартовать
+    // с cwnd=1 (это сильно режет RTT на локалке), но и не раздуваем in_flight_
+    constexpr double INITIAL_CWND = 64.0;
+
+    // верхний предел окна: 1024 пакета ≈ 1.4 МБ в полёте; достаточно для
+    // гигабитного LAN, при этом RAM под in_flight_ ограничена ~1.5 МБ
+    constexpr double MAX_CWND = 1024.0;
+
+    // абсолютный предел на размер in_flight_, не зависящий от cwnd;
+    // защита от случая, когда cwnd случайно разрастается выше MAX_CWND
+    constexpr std::size_t MAX_IN_FLIGHT = 1024;
+
+    // hard cap на буфер переупорядочивания на стороне получателя;
+    // защита от ситуации, когда sequence-номер скакнул далеко вперёд (потеря ACK'ов)
+    constexpr std::size_t MAX_PACKETS_BUFFER = 8192;
+
+    // сколько ждать опустошения in_flight_ в close() перед принудительной остановкой
+    constexpr std::chrono::seconds CLOSE_DRAIN_TIMEOUT(30);
+
     enum PacketType : uint8_t
     {
-        KEEP_ALIVE, // проверка соеденения
+        KEEP_ALIVE, // проверка соединения
 
         DATA, // пакет с данными
 
@@ -20,7 +39,7 @@ namespace PHZ
 
         ACK, // подтверждение пакета
 
-        END_TRANSFER // данный тип указывает передача окончена
+        END_TRANSFER // данный тип указывает, что передача окончена
     };
 
     enum PacketFlags : uint8_t
