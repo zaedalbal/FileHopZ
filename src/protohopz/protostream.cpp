@@ -101,26 +101,8 @@ ProtoStream::receive()
 
 boost::asio::awaitable<void> ProtoStream::close()
 {
-    SPDLOG_TRACE("ProtoStream::close: sending END_TRANSFER");
+    SPDLOG_TRACE("ProtoStream::close: draining in_flight");
 
-    PHZ::Packet packet =
-    {
-        .header =
-        {
-            .type = PHZ::PacketType::END_TRANSFER,
-            .flags = {},
-            .size = 0,
-            .sequence = 0 // sequence контроллируется в ProtoHopZ
-        }
-    };
-
-    co_await transport_.send_packet(&packet);
-
-    SPDLOG_TRACE("ProtoStream::close: END_TRANSFER sent, draining in_flight");
-
-    // даётся время на приход ACK'ов и заполнение in_flight_, чтобы close() был
-    // корректным завершением, а не "отрезали хвост"; таймаут — 30 секунд;
-    // дренаж event-driven: ждём сигнала "in_flight опустел" от ack_handler
     auto drained = co_await transport_.wait_in_flight_drained(
         std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             PHZ::CLOSE_DRAIN_TIMEOUT
