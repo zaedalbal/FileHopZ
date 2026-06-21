@@ -116,19 +116,18 @@ boost::asio::awaitable<void> ProtoStream::close()
 
     co_await transport_.send_packet(&packet);
 
-    SPDLOG_TRACE("ProtoStream::close: END_TRANSFER sent, in_flight={} (draining)",
-                 transport_.in_flight_count());
+    SPDLOG_TRACE("ProtoStream::close: END_TRANSFER sent, draining in_flight");
 
     // даётся время на приход ACK'ов и заполнение in_flight_, чтобы close() был
-    // корректным завершением, а не "отрезали хвост"; таймаут — 30 секунд
+    // корректным завершением, а не "отрезали хвост"; таймаут — 30 секунд;
+    // дренаж event-driven: ждём сигнала "in_flight опустел" от ack_handler
     auto drained = co_await transport_.wait_in_flight_drained(
         std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             PHZ::CLOSE_DRAIN_TIMEOUT
         )
     );
 
-    SPDLOG_TRACE("ProtoStream::close: drain result={}, in_flight={}",
-                 drained, transport_.in_flight_count());
+    SPDLOG_TRACE("ProtoStream::close: drain result={}", drained);
 
     // помечается loops_running_ = false до отмены сигналов, чтобы receive_chunks_loop
     // мог на это опереться в проверке, если в будущем захочется graceful exit
@@ -146,7 +145,7 @@ boost::asio::awaitable<void> ProtoStream::close()
     // в ready_chunks_.pop(), то сейчас он получит operation_aborted;
     // дополнительной очистки не требуется
 
-    transport_.stop_loops();
+    co_await transport_.stop_loops();
 
     SPDLOG_TRACE("ProtoStream::close: done");
 }
