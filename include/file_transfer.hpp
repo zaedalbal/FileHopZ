@@ -31,7 +31,7 @@ class File_transfer
         virtual boost::asio::awaitable<boost::system::error_code>
         start_transfer() = 0;
 
-        // error код всегда пустой, он сделан чтобы в будущем можно было че то добавить и не менять возращаемый тип
+        // error_code всегда пустой; оставлен, чтобы будущее расширение не меняло сигнатуру
         virtual boost::system::error_code
         print_progress(std::size_t bytes_transferred);
 

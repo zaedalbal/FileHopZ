@@ -118,14 +118,9 @@ boost::asio::awaitable<void> ProtoStream::close()
     // останавливается приём чанков и затем транспорт
     cancellation_signal_receive_chunks_loop_.emit(boost::asio::cancellation_type::all);
 
-    // дренаж ready_chunks_: после остановки transport-а никто не запишет
-    // новых, но уже лежащие Chunk'и нужно либо вычитать, либо выкинуть;
-    // иначе деструктор Async_queue зависнет на waiters_'е или queue_'е
-    // с миллионами элементов; здесь ничего не вычитывается (receive_chunks_loop
-    // уже отменён), но нужно убедиться, что waiters_ пуст; cancel
-    // выше должен был разбудить все ожидающие waiters'ы; если же кто-то ждёт
-    // в ready_chunks_.pop(), то сейчас он получит operation_aborted;
-    // дополнительной очистки не требуется
+    // дренаж ready_chunks_: cancel выше разбудил всех ожидающих в pop()
+    // (operation_aborted); оставшиеся в очереди элементы заберёт деструктор
+    // Async_queue, так что дополнительной очистки не требуется
 
     co_await transport_.stop_loops();
 

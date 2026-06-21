@@ -24,15 +24,15 @@ class Crypto_context
         // создает public key и private key
         boost::system::error_code init();
 
-        // шифрует передаваемые данные и возращает vector с зашифрованными данными
+        // шифрует передаваемые данные и возвращает vector с зашифрованными данными
         std::expected<std::vector<std::byte>, boost::system::error_code>
         encrypt_data(std::span<const std::byte> data);
 
-        // расшифровывает передаваемые данные и возращает vector с расшифрованными данными
+        // расшифровывает передаваемые данные и возвращает vector с расшифрованными данными
         std::expected<std::vector<std::byte>, boost::system::error_code>
         decrypt_data(std::span<const std::byte> data);
 
-        // возращает собственный public key
+        // возвращает собственный public key
         std::span<const std::byte, X25519_LEN> get_own_public_key();
 
         // устанавливает public key peer'а

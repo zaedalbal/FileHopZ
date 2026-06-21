@@ -6,11 +6,11 @@ class File_walker
     public:
         explicit File_walker(const std::filesystem::path& root);
 
-        bool next(); // переход к следующиему файлу/дериктории
+        bool next(); // переход к следующему файлу/директории
 
-        const std::filesystem::path& current_path(); // получить путь к текущему файлу/дериктории
+        const std::filesystem::path& current_path(); // текущий путь (файл/директория)
 
-        std::filesystem::path relative_path(); // получить путь к текущему файлу/дериктории относительно корневой дериктории (root_)
+        std::filesystem::path relative_path(); // путь относительно root_
 
         void reset(); // сброс итератора
 
