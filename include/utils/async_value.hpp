@@ -49,10 +49,8 @@ class Async_value
             );
         }
 
-        // молча обновить value_ без будить waiter'ов; используется, когда выпуск
-        // waiter'ов управляется отдельно через notify_one() (например, cwnd: на
-        // каждый ACK значение меняется через update(), а отпускается ровно один
-        // waiter через notify_one() — без wake-all burst'а)
+        // обновить value_ без пробуждения waiter'ов; для cwnd — update() на каждый
+        // ACK, а выпуск waiter'ов управляется отдельно через notify_one()
         void update(T new_value)
         {
             boost::asio::dispatch(
@@ -65,11 +63,8 @@ class Async_value
             );
         }
 
-        // разбудить ровно одну ожидающую корутину (FIFO) без изменения value_;
-        // используется для rate-based контроля cwnd: на каждый ACK значение
-        // меняется через update() (молча, без будить-всех), а notify_one()
-        // отпускает ровно одного waiter'а — на каждый ACK ровно одна новая
-        // отправка, без пачек и без 10-мс лага (всё синхронно на strand_)
+        // разбудить ровно одного waiter'а (FIFO) без изменения value_;
+        // для cwnd: один ACK → update() + notify_one() → одна новая отправка
         void notify_one()
         {
             boost::asio::dispatch(

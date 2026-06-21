@@ -78,7 +78,7 @@ class ProtoHopZ
         // сериализуется — strand держится только на синхронных обращениях к стейту
         boost::asio::strand<boost::asio::any_io_executor> strand_;
 
-        Async_value<double> cwnd_; //= INITIAL_CWND;
+        Async_value<double> cwnd_;
 
         boost::asio::cancellation_signal cancellation_signal_receive_loop;
         boost::asio::cancellation_signal cancellation_signal_timeout_loop;

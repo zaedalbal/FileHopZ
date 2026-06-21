@@ -1,6 +1,6 @@
 #include <utils/crypto_context.hpp>
 
-// для сборки теста раскоментировать include снизу
+// для сборки теста раскомментировать include ниже
 /*#include "../../include/utils/crypto_context.hpp"
 Crypto_context::~Crypto_context()
 {}*/
@@ -12,18 +12,18 @@ boost::system::error_code Crypto_context::init()
     );
 
     if(!generation_context)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     // генерация ключей
     if(EVP_PKEY_keygen_init(generation_context.get()) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     EVP_PKEY* raw_key{nullptr};
 
     if(EVP_PKEY_keygen(generation_context.get(), &raw_key) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     key_handle_.reset(raw_key);
@@ -60,22 +60,22 @@ boost::system::error_code Crypto_context::set_peer_public_key
         )
     );
     if(!peer_pub_key)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     std::unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_DELETER> derive_context(
         EVP_PKEY_CTX_new(key_handle_.get(), nullptr)
     );
     if(!derive_context)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     if(EVP_PKEY_derive_init(derive_context.get()) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     if(EVP_PKEY_derive_set_peer(derive_context.get(), peer_pub_key.get()) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     std::size_t secret_len = X25519_LEN;
@@ -88,7 +88,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
@@ -101,25 +101,25 @@ boost::system::error_code Crypto_context::set_peer_public_key
     if(!hkdf_context)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
     if(EVP_PKEY_derive_init(hkdf_context.get()) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
     if(EVP_PKEY_CTX_set_hkdf_md(hkdf_context.get(), EVP_sha256()) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
-    // соль = соеденение двух публичных ключей
+    // соль = соединение двух публичных ключей
     std::array<std::byte, X25519_LEN * 2> salt;
     auto own_is_less = std::lexicographical_compare(
         own_public_key_.begin(),
@@ -146,7 +146,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
@@ -157,7 +157,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
@@ -169,7 +169,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
@@ -182,7 +182,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     }
 
@@ -208,14 +208,14 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         reinterpret_cast<unsigned char*>(output_packet.data()),
         NONCE_LEN
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
 
     std::unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_DELETER> cipher_context(EVP_CIPHER_CTX_new());
     if(!cipher_context)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -227,7 +227,7 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         nullptr,
         nullptr
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );    
@@ -239,7 +239,7 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         NONCE_LEN,
         nullptr
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -251,7 +251,7 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(encryption_key_.data()),
         reinterpret_cast<const unsigned char*>(output_packet.data())
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -264,7 +264,7 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(data.data()),
         static_cast<int>(data.size_bytes())
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -275,7 +275,7 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         nullptr,
         &final_bytes
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -286,7 +286,7 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         TAG_LEN,
         output_packet.data() + NONCE_LEN + data.size_bytes()
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -317,7 +317,7 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         EVP_CIPHER_CTX_new()
     );
     if(!cipher_context)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -329,7 +329,7 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         nullptr,
         nullptr
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -340,7 +340,7 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         NONCE_LEN,
         nullptr
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -352,7 +352,7 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(encryption_key_.data()),
         reinterpret_cast<const unsigned char*>(nonce_ptr)
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -366,20 +366,20 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(encrypted_data_ptr),
         static_cast<int>(encrypted_data_size)
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
     
-    // проверка тега. если тег не совпал, то возращается 0
-    // (означает что данные поверждены, подделаны или неверный ключ)
+    // установка ожидаемого тега; затем EVP_DecryptFinal_ex проверит его —
+    // при несовпадении вернёт 0 (данные повреждены/подделаны либо неверный ключ)
     if(EVP_CIPHER_CTX_ctrl(
         cipher_context.get(),
         EVP_CTRL_AEAD_SET_TAG,
         TAG_LEN,
         const_cast<std::byte*>(tag_ptr)
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );
@@ -390,7 +390,7 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         nullptr,
         &final_bytes
     ) != 1)
-    // в будущем поменять возращаемую ошибку
+    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
             boost::system::errc::make_error_code(boost::system::errc::bad_message)
         );

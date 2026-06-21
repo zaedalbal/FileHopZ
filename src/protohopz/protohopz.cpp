@@ -742,8 +742,8 @@ void ProtoHopZ::ack_handler(uint32_t sequence)
     }
 
     // update() меняет значение молча (без wake-all); notify_one() отпускает ровно
-    // одного waiter'а из cwnd_.wait() — на каждый ACK ровно одна новая отправка,
-    // без пачек и без 10-мс лага (всё синхронно на strand_)
+    // одного waiter'а из cwnd_.wait() — на каждый ACK ровно одна новая отправка
+    // (всё синхронно на strand_)
     cwnd_.update(next_cwnd);
     cwnd_.notify_one();
 

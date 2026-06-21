@@ -9,7 +9,7 @@
 class File_builder
 {
     public:
-        // конструктор принимает имя корневой дериктории и создает её, если её нет
+        // конструктор: создаёт root_, если её нет
         explicit File_builder(const std::filesystem::path& root);
 
         // метод для создания директории
@@ -18,7 +18,7 @@ class File_builder
         // метод для создания файла
         boost::system::error_code create_file(const std::filesystem::path& relative_path, uint32_t file_id);
 
-        // данный метод принимает file_id, чтобы в будущем можно было держать много файлов открытыми
+        // file_id — ключ для одновременной записи в несколько файлов
         boost::system::error_code write(const char* data, std::size_t size, uint32_t file_id);
 
         // метод для закрытия файла

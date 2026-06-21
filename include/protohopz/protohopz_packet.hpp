@@ -39,7 +39,8 @@ namespace PHZ
 
         ACK, // подтверждение пакета
 
-        END_TRANSFER // данный тип указывает, что передача окончена
+        END_TRANSFER // по сети не отправляется; локальный маркер в stop_loops (разбудить pop()).
+                     // Реальный сигнал конца передачи — прикладной PacketType::END_TRANSFER (packet.hpp), идёт как DATA
     };
 
     enum PacketFlags : uint8_t

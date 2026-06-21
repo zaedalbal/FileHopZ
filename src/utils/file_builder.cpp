@@ -20,7 +20,7 @@ File_builder::File_builder(const std::filesystem::path& root)
 boost::system::error_code File_builder::create_directory(const std::filesystem::path& relative_path)
 {
     std::error_code ec;
-    auto full_path = root_ / relative_path; // оператор '/' перегружен так что склеивает две строки
+    auto full_path = root_ / relative_path; // path::operator/ — склейка путей (std::filesystem)
     std::filesystem::create_directories(full_path, ec);
     return ec;
 }
@@ -28,7 +28,7 @@ boost::system::error_code File_builder::create_directory(const std::filesystem::
 boost::system::error_code File_builder::create_file(const std::filesystem::path& relative_path, uint32_t file_id)
 {
     std::error_code ec;
-    auto full_path = root_ / relative_path; // оператор '/' перегружен так что склеивает две строки
+    auto full_path = root_ / relative_path; // path::operator/ — склейка путей (std::filesystem)
     std::filesystem::create_directories(full_path.parent_path(), ec);
     if(ec)
         return ec;
@@ -37,7 +37,7 @@ boost::system::error_code File_builder::create_file(const std::filesystem::path&
 
     if(!file->is_open())
     {
-        file.reset(); // очистка указателя если че то пошло не так
+        file.reset(); // освободить ресурс при ошибке открытия
         return boost::system::errc::make_error_code(boost::system::errc::io_error);
     }
 
@@ -53,10 +53,10 @@ boost::system::error_code File_builder::write(const char* data, std::size_t size
     if(it == open_files_.end())
         return boost::system::errc::make_error_code(boost::system::errc::bad_file_descriptor);
 
-    // static_cast на будущее, если будет передаваться большие объемы данных
+    // static_cast: ofstream::write принимает std::streamsize, а size — std::size_t
     it->second->write(data, static_cast<std::streamsize>(size));
 
-    if(it->second->bad() || it->second->fail()) // проверка ошибки записи
+    if(it->second->bad() || it->second->fail())
         return boost::system::errc::make_error_code(boost::system::errc::io_error);
 
     return {};

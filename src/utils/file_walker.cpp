@@ -1,9 +1,8 @@
 #include "utils/file_walker.hpp"
 #include <iostream>
 
-// В БУДУЩЕМ ПЕРЕПИСАТЬ РЕАЛИЗАЦИЮ КЛАССА НА РЕЖИМЫ РАБОТЫ С ОДИНОЧНЫМ ФАЙЛОМ И ДЕРИКТОРИЯМИ ВМЕСТО ФЛАГОВ
-
-// НА ДАННЫЙ МОМЕНТ КОД ОЧЕНЬ КОСТЫЛЬНЫЙ И НЕПОНЯТНЫЙ ИЗ ЗА ФЛАГОВ single_file и single_file_returned
+// TODO: переписать на режимы (одиночный файл / директория) вместо флагов
+// single_file_ и single_file_returned_ — сейчас из-за них код запутанный
 
 File_walker::File_walker(const std::filesystem::path& root)
 : root_(root), end_()
@@ -31,8 +30,7 @@ bool File_walker::next()
     }
     while(it_ != end_)
     {
-        // !!!entry КОПИЯ, А НЕ ССЫЛКА. ЕСЛИ СДЕЛАТЬ ССЫЛКУ, А ПОТОМ ++it_ ВСЕ ЛОМАЕТСЯ!!!
-        // В БУДУЩЕМ ИСПРАВИТЬ
+        // entry — копия: ссылка инвалидируется после ++it_
         const auto entry = *it_;
         ++it_;
         std::error_code ec;
