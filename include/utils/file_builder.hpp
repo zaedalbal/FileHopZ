@@ -4,7 +4,7 @@
 #include <memory>
 #include <boost/system.hpp>
 #include <unordered_map>
-#include "packet.hpp"
+#include "ftp_packet.hpp"
 
 class File_builder
 {

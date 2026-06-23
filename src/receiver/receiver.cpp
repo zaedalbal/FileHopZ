@@ -1,10 +1,10 @@
 #include "receiver/receiver.hpp"
-#include "packet.hpp"
+#include "ftp_packet.hpp"
 #include <iostream>
 
 namespace
 {
-    inline std::filesystem::path extract_path(const Packet& packet)
+    inline std::filesystem::path extract_path(const FTProto::Packet& packet)
     {
         return std::filesystem::path(std::string(packet.data, packet.header.size));
     }
@@ -36,10 +36,10 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
             boost::system::errc::bad_address
         );
 
-    if(chunk.size_ < sizeof(PacketHeader))
+    if(chunk.size_ < sizeof(FTProto::PacketHeader))
         co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
-    Packet packet{};
+    FTProto::Packet packet{};
     std::memcpy(&packet, chunk.data_.get(), chunk.size_);
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
 
@@ -51,18 +51,18 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         std::getline(std::cin, confirm);
         if(confirm == "Y" || confirm == "y")
         {
-            Packet confirm_packet
+            FTProto::Packet confirm_packet
             {
                 .header =
                 {
-                    .type = PacketType::CONFIRM,
+                    .type = FTProto::PacketType::CONFIRM,
                     .flags = {},
                     .size = 0,
                     .file_id = 0
                 },
             };
 
-            ec = co_await protostream_.send(Packet::as_bytes(confirm_packet));
+            ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
@@ -73,18 +73,18 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         }
         else if(confirm == "n" || confirm == "N")
         {
-            Packet confirm_packet =
+            FTProto::Packet confirm_packet =
             {
                 .header =
                 {
-                    .type = PacketType::CONFIRM_FAILED,
+                    .type = FTProto::PacketType::CONFIRM_FAILED,
                     .flags = {},
                     .size = 0,
                     .file_id = 0
                 },
             };
 
-            ec = co_await protostream_.send(Packet::as_bytes(confirm_packet));
+            ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
             if(ec)
             {
                 std::cerr << ec.message() << "\n";
@@ -102,10 +102,10 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
     {
         auto chunk = co_await protostream_.receive();
 
-        if(chunk.size_ < sizeof(PacketHeader))
+        if(chunk.size_ < sizeof(FTProto::PacketHeader))
             co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
-        Packet packet{};
+        FTProto::Packet packet{};
         std::memcpy(&packet, chunk.data_.get(), chunk.size_);
 
         auto ec = handle_packet(std::move(packet));
@@ -118,11 +118,11 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
     co_return boost::system::error_code();
 }
 
-boost::system::error_code Receiver::handle_packet(Packet packet)
+boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
 {
     switch(packet.header.type)
     {
-        case PacketType::CREATE_DIRECTORY:
+        case FTProto::PacketType::CREATE_DIRECTORY:
         {
             auto ec = file_builder_.create_directory(extract_path(packet));
             if(ec)
@@ -131,7 +131,7 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
             break;
         }
 
-        case PacketType::CREATE_FILE:
+        case FTProto::PacketType::CREATE_FILE:
         {
             auto ec = file_builder_.create_file(extract_path(packet), packet.header.file_id);
             if(ec)
@@ -140,7 +140,7 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
             break;
         }
 
-        case PacketType::FILE_DATA:
+        case FTProto::PacketType::FILE_DATA:
         {
             if(bytes_to_transfer_ >= packet.get_payload_size())
             {
@@ -167,7 +167,7 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
             break;
         }
 
-        case PacketType::END_FILE:
+        case FTProto::PacketType::END_FILE:
         {
             auto ec = file_builder_.close_file(packet.header.file_id);
             if(ec)
@@ -176,7 +176,7 @@ boost::system::error_code Receiver::handle_packet(Packet packet)
             break;
         }
 
-        case PacketType::END_TRANSFER:
+        case FTProto::PacketType::END_TRANSFER:
         {
             end_transfer_flag_ = true;
 

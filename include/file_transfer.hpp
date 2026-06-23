@@ -1,7 +1,7 @@
 #pragma once
 #include <boost/asio.hpp>
 #include "protohopz/protostream.hpp"
-#include "packet.hpp"
+#include "ftp_packet.hpp"
 
 class File_transfer
 {

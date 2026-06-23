@@ -1,5 +1,5 @@
 #include <sender/sender.hpp>
-#include <packet.hpp>
+#include <ftp_packet.hpp>
 #include <iostream>
 
 Sender::Sender(
@@ -30,10 +30,10 @@ Sender::transfer_confirmation()
     }
     file_walker_.reset();
     
-    Packet packet;
+    FTProto::Packet packet;
     packet.set_payload(&bytes_to_transfer_, sizeof(bytes_to_transfer_));
 
-    ec = co_await protostream_.send(Packet::as_bytes(packet));
+    ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
     if(ec)
     {
         std::cerr << ec.message() << "\n";
@@ -41,13 +41,13 @@ Sender::transfer_confirmation()
     }
 
     auto chunk = co_await protostream_.receive();
-    if(chunk.size_ < sizeof(PacketHeader))
+    if(chunk.size_ < sizeof(FTProto::PacketHeader))
         co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
     packet = {};
     std::memcpy(&packet, chunk.data_.get(), chunk.size_);
 
-    if(packet.header.type == PacketType::CONFIRM)
+    if(packet.header.type == FTProto::PacketType::CONFIRM)
         co_return co_await start_transfer();
     else
     {
@@ -66,18 +66,18 @@ Sender::start_transfer()
             co_return ec;
     }
 
-    Packet end_transfer_packet =
+    FTProto::Packet end_transfer_packet =
     {
         .header =
         {
-            .type = PacketType::END_TRANSFER,
+            .type = FTProto::PacketType::END_TRANSFER,
             .flags = {},
             .size = 0,
             .file_id = 0
         }
     };
 
-    auto ec = co_await protostream_.send(Packet::as_bytes(end_transfer_packet));
+    auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(end_transfer_packet));
     if(ec)
         co_return ec;
 
@@ -97,12 +97,12 @@ Sender::path_handler(const std::filesystem::path& file)
             auto file_id = file_id_counter_++;
             auto relative_path = file_walker_.relative_path().string();
 
-            Packet packet;
+            FTProto::Packet packet;
             packet.header.file_id = file_id;
-            packet.header.type = PacketType::CREATE_DIRECTORY;
+            packet.header.type = FTProto::PacketType::CREATE_DIRECTORY;
             packet.set_payload(relative_path.data(), relative_path.size());
 
-            auto ec = co_await protostream_.send(Packet::as_bytes(packet));
+            auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
             if(ec)
                 co_return ec;
 
@@ -121,38 +121,38 @@ Sender::path_handler(const std::filesystem::path& file)
             std::size_t bytes_read = 0;
             auto relative_path = file_walker_.relative_path().string();
             
-            Packet packet_create_file;
+            FTProto::Packet packet_create_file;
             packet_create_file.set_payload(relative_path.data(), relative_path.size());
-            packet_create_file.header.type = PacketType::CREATE_FILE;
+            packet_create_file.header.type = FTProto::PacketType::CREATE_FILE;
             packet_create_file.header.file_id = file_id;
 
-            auto error = co_await protostream_.send(Packet::as_bytes(packet_create_file));
+            auto error = co_await protostream_.send(FTProto::Packet::as_bytes(packet_create_file));
             if(error)
                 co_return error;
 
             do
             {
-                Packet packet;
+                FTProto::Packet packet;
                 packet.header.file_id = file_id;
-                packet.header.type = PacketType::FILE_DATA;
+                packet.header.type = FTProto::PacketType::FILE_DATA;
                 
-                file_stream.read(packet.data, PACKET_SIZE);
+                file_stream.read(packet.data, FTProto::PACKET_SIZE);
                 bytes_read = file_stream.gcount();
                 packet.header.size = static_cast<uint16_t>(bytes_read);
 
-                auto ec = co_await protostream_.send(Packet::as_bytes(packet));
+                auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
                 if(ec)
                     co_return ec;
 
             }
-            while(bytes_read == PACKET_SIZE);
+            while(bytes_read == FTProto::PACKET_SIZE);
 
-            Packet packet;
+            FTProto::Packet packet;
             packet.header.file_id = file_id;
             packet.header.size = 0;
-            packet.header.type = PacketType::END_FILE;
+            packet.header.type = FTProto::PacketType::END_FILE;
             
-            auto ec = co_await protostream_.send(Packet::as_bytes(packet));
+            auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
             if(ec)
                 co_return ec;
 
