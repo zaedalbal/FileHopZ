@@ -40,7 +40,7 @@ namespace PHZ
         ACK, // подтверждение пакета
 
         END_TRANSFER // по сети не отправляется; локальный маркер в stop_loops (разбудить pop()).
-                     // Реальный сигнал конца передачи — прикладной PacketType::END_TRANSFER (packet.hpp), идёт как DATA
+                     // Реальный сигнал конца передачи — прикладной PacketType::END_TRANSFER (ftp_packet.hpp), идёт как DATA
     };
 
     enum PacketFlags : uint8_t

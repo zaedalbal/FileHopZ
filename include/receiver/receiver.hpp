@@ -1,5 +1,6 @@
 #pragma once
 #include "file_transfer.hpp"
+#include "ftp_packet.hpp"
 #include "utils/file_builder.hpp"
 #include <boost/asio.hpp>
 
@@ -22,7 +23,7 @@ class Receiver : public File_transfer
         boost::asio::awaitable<boost::system::error_code>
         start_transfer() override;
 
-        boost::system::error_code handle_packet(Packet packet);
+        boost::system::error_code handle_packet(FTProto::Packet packet);
     
     private:
         bool end_transfer_flag_ = false;

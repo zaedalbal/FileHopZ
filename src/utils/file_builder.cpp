@@ -2,7 +2,7 @@
 
 namespace
 {
-    inline std::filesystem::path extract_path(const Packet& packet)
+    inline std::filesystem::path extract_path(const FTProto::Packet& packet)
     {
         return std::filesystem::path(std::string(packet.data, packet.header.size));
     }
