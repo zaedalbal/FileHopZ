@@ -18,14 +18,16 @@ ProtoHopZ::ProtoHopZ(
 )
 :   socket_(std::move(socket)),
     peer_endpoint_(std::move(peer_endpoint)),
+    peer_endpoint_known_(peer_endpoint_.port() != 0),
     strand_(socket_.get_executor()),
     cwnd_(strand_, PHZ::INITIAL_CWND),
     received_packets_queue_(socket_.get_executor()),
     drained_signal_(strand_, false)
 {
-    SPDLOG_TRACE("ProtoHopZ constructed: peer={}:{}",
+    SPDLOG_TRACE("ProtoHopZ constructed: peer={}:{} known={}",
                  peer_endpoint_.address().to_string(),
-                 peer_endpoint_.port());
+                 peer_endpoint_.port(),
+                 peer_endpoint_known_);
 }
 
 void ProtoHopZ::start_loops()
@@ -357,10 +359,20 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
             packet.header.sequence, packet.header.size);
     }
 
+    // Регистрируем пакет до отправки: быстрый ACK не должен потеряться.
+    auto [it, _] = in_flight_.insert_or_assign(
+        packet.header.sequence,
+        PHZ::PacketLocal{std::chrono::steady_clock::now(), packet}
+    );
+
+    SPDLOG_TRACE_PACKET(packet.header.sequence,
+        "ProtoHopZ::send_packet: queued seq={} in_flight now {}",
+        packet.header.sequence, in_flight_.size());
+
     co_await socket_.async_send_to(
         boost::asio::buffer(
-            &packet,
-            sizeof(PHZ::PacketHeader) + packet.header.size
+            &it->second.packet,
+            sizeof(PHZ::PacketHeader) + it->second.packet.header.size
         ),
         peer_endpoint_,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec)
@@ -370,11 +382,12 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     {
         SPDLOG_CRITICAL("ProtoHopZ::send_packet: async_send_to error for seq={}: {}",
                         packet.header.sequence, ec.message());
+        in_flight_.erase(packet.header.sequence);
+        cwnd_.notify_one();
+        if(in_flight_.empty())
+            drained_signal_.set(true);
         co_return ec;
     }
-
-    in_flight_[packet.header.sequence] =
-    {std::chrono::steady_clock::now(), packet};
 
     SPDLOG_TRACE_PACKET(packet.header.sequence,
         "ProtoHopZ::send_packet: sent seq={}, in_flight now {}",
@@ -468,16 +481,36 @@ ProtoHopZ::receive_loop()
     while(true)
     {
         PHZ::Packet packet;
+        boost::asio::ip::udp::endpoint remote_endpoint;
 
         co_await socket_.async_receive_from(
             boost::asio::buffer(&packet, sizeof(PHZ::Packet)),
-            peer_endpoint_,
+            remote_endpoint,
             boost::asio::redirect_error(boost::asio::use_awaitable, ec)
         );
         if(ec)
         {
             SPDLOG_TRACE("ProtoHopZ::receive_loop: async_receive_from error: {}", ec.message());
             co_return ec;
+        }
+
+        if(!peer_endpoint_known_)
+        {
+            // Receiver принимает первый пакет как начало соединения.
+            peer_endpoint_ = remote_endpoint;
+            peer_endpoint_known_ = true;
+            SPDLOG_TRACE("ProtoHopZ::receive_loop: peer locked to {}:{}",
+                         peer_endpoint_.address().to_string(),
+                         peer_endpoint_.port());
+        }
+        else if(remote_endpoint != peer_endpoint_)
+        {
+            SPDLOG_TRACE("ProtoHopZ::receive_loop: ignoring packet from unexpected peer {}:{} (expected {}:{})",
+                         remote_endpoint.address().to_string(),
+                         remote_endpoint.port(),
+                         peer_endpoint_.address().to_string(),
+                         peer_endpoint_.port());
+            continue;
         }
 
         SPDLOG_TRACE_PACKET(packet.header.sequence,
@@ -732,8 +765,8 @@ void ProtoHopZ::ack_handler(uint32_t sequence)
 
     if(cwnd_.get() < sshthresh_)
     {
-        // slow start: всё ещё удваиваем, но ограничиваем сверху
-        next_cwnd = std::min(cwnd_.get() * 2.0, PHZ::MAX_CWND);
+        // Slow start: растём примерно в 2 раза за RTT, а не за каждый ACK.
+        next_cwnd = std::min(cwnd_.get() + 1.0, PHZ::MAX_CWND);
     }
     else
     {

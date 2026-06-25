@@ -67,6 +67,8 @@ class ProtoHopZ
 
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint peer_endpoint_;
+        // Для receiver endpoint становится известен после первого пакета.
+        bool peer_endpoint_known_ = false;
 
         // единый strand для всего общего стейта ProtoHopZ (in_flight_,
         // received_packets_, cwnd_, sshthresh_, sequence_counter_, drained_signal_);
