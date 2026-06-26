@@ -360,7 +360,7 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     }
 
     // Регистрируем пакет до отправки: быстрый ACK не должен потеряться.
-    auto [it, _] = in_flight_.insert_or_assign(
+    in_flight_.insert_or_assign(
         packet.header.sequence,
         PHZ::PacketLocal{std::chrono::steady_clock::now(), packet}
     );
@@ -369,10 +369,12 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
         "ProtoHopZ::send_packet: queued seq={} in_flight now {}",
         packet.header.sequence, in_flight_.size());
 
+    // async_send_to требует, чтобы буфер жил до completion. Нельзя давать
+    // указатель на элемент in_flight_: быстрый ACK может стереть его раньше.
     co_await socket_.async_send_to(
         boost::asio::buffer(
-            &it->second.packet,
-            sizeof(PHZ::PacketHeader) + it->second.packet.header.size
+            &packet,
+            sizeof(PHZ::PacketHeader) + packet.header.size
         ),
         peer_endpoint_,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec)
@@ -446,10 +448,13 @@ ProtoHopZ::resend_packet(uint32_t sequense)
         "ProtoHopZ::resend_packet: resending seq={} size={}",
         sequense, it->second.packet.header.size);
 
+    // Копия переживает co_await даже если ACK сотрет запись из in_flight_.
+    auto packet = it->second.packet;
+
     co_await socket_.async_send_to(
         boost::asio::buffer(
-            &it->second.packet,
-            sizeof(PHZ::PacketHeader) + it->second.packet.header.size
+            &packet,
+            sizeof(PHZ::PacketHeader) + packet.header.size
         ),
         peer_endpoint_,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec)

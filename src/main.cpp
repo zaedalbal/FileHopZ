@@ -10,7 +10,7 @@
 int main(int argc, char* argv[])
 {
     logger::init();
-    SPDLOG_INFO("logger init");
+    SPDLOG_TRACE("logger init");
 
     if(argc < 2)
     {

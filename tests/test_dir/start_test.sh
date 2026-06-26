@@ -74,9 +74,9 @@ kill $timeout_monitor_pid 2>/dev/null || true
 # проверка результата
 if diff -rq "$TEST_DIR" "$RECV_DIR" > /dev/null; then
     echo "test successful"
+    exit 0
 else
     echo "test failed"
     diff -rq "$TEST_DIR" "$RECV_DIR"
+    exit 1
 fi
-
-exit 1

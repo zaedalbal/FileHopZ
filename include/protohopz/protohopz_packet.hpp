@@ -22,9 +22,10 @@ namespace PHZ
     // защита от случая, когда cwnd случайно разрастается выше MAX_CWND
     constexpr std::size_t MAX_IN_FLIGHT = 1024;
 
-    // hard cap на буфер переупорядочивания на стороне получателя;
-    // защита от ситуации, когда sequence-номер скакнул далеко вперёд (потеря ACK'ов)
-    constexpr std::size_t MAX_PACKETS_BUFFER = 8192;
+    // hard cap на буфер переупорядочивания на стороне получателя.
+    // Должен быть не меньше окна ProtoStream, иначе Release-сборка успевает
+    // заполнить буфер допустимыми out-of-order пакетами до retransmit.
+    constexpr std::size_t MAX_PACKETS_BUFFER = 65536;
 
     // сколько ждать опустошения in_flight_ в close() перед принудительной остановкой
     constexpr std::chrono::seconds CLOSE_DRAIN_TIMEOUT(30);
