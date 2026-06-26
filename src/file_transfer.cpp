@@ -41,10 +41,15 @@ boost::system::error_code File_transfer::print_progress(std::size_t bytes_transf
 
     bytes_transferred_ += bytes_transferred;
     auto new_progress = static_cast<uint16_t>((bytes_transferred_ * 100) / bytes_to_transfer_);
+    if(new_progress > 100)
+        new_progress = 100;
 
     if(new_progress > last_progress_)
     {
-        std::cout << "Progress: " << new_progress << "%\n";
+        std::cout << "\rProgress: " << new_progress << "%" << std::flush;
+        if(new_progress == 100)
+            std::cout << "\n";
+
         last_progress_ = new_progress;
     }
     
