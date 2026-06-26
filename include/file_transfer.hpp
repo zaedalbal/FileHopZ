@@ -40,5 +40,9 @@ class File_transfer
 
         ProtoStream protostream_;
 
-        uint64_t bytes_to_transfer_;
+        uint64_t bytes_to_transfer_ = 0;
+
+        uint64_t bytes_transferred_ = 0;
+
+        uint16_t last_progress_ = 0;
 };

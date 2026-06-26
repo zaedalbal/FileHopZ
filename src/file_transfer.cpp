@@ -36,16 +36,16 @@ File_transfer::File_transfer(
 
 boost::system::error_code File_transfer::print_progress(std::size_t bytes_transferred)
 {
-    static std::size_t total_bytes_transferred = 0;
-    static uint8_t last_progress = 0;
+    if(bytes_to_transfer_ == 0)
+        return {};
 
-    total_bytes_transferred += bytes_transferred;
-    uint8_t new_progress = (total_bytes_transferred * 100) / bytes_to_transfer_;
+    bytes_transferred_ += bytes_transferred;
+    auto new_progress = static_cast<uint16_t>((bytes_transferred_ * 100) / bytes_to_transfer_);
 
-    if(new_progress > last_progress)
+    if(new_progress > last_progress_)
     {
         std::cout << "Progress: " << new_progress << "%\n";
-        last_progress = new_progress;
+        last_progress_ = new_progress;
     }
     
     return {};
