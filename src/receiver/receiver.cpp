@@ -1,5 +1,6 @@
 #include "receiver/receiver.hpp"
 #include "ftp_packet.hpp"
+#include <cstring>
 #include <iostream>
 
 namespace
@@ -7,6 +8,32 @@ namespace
     inline std::filesystem::path extract_path(const FTProto::Packet& packet)
     {
         return std::filesystem::path(std::string(packet.data, packet.header.size));
+    }
+
+    boost::system::error_code extract_symlink(
+        const FTProto::Packet& packet,
+        std::filesystem::path& relative_path,
+        std::filesystem::path& target
+    )
+    {
+        auto payload_size = packet.get_payload_size();
+        if(payload_size < sizeof(uint16_t))
+            return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+
+        uint16_t link_path_size = 0;
+        std::memcpy(&link_path_size, packet.data, sizeof(link_path_size));
+
+        if(link_path_size > payload_size - sizeof(uint16_t))
+            return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+
+        auto link_path = packet.data + sizeof(uint16_t);
+        auto target_path = link_path + link_path_size;
+        auto target_size = payload_size - sizeof(uint16_t) - link_path_size;
+
+        relative_path = std::filesystem::path(std::string(link_path, link_path_size));
+        target = std::filesystem::path(std::string(target_path, target_size));
+
+        return {};
     }
 }
 
@@ -39,8 +66,13 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
     if(chunk.size_ < sizeof(FTProto::PacketHeader))
         co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
-    FTProto::Packet packet{};
-    std::memcpy(&packet, chunk.data_.get(), chunk.size_);
+    FTProto::Packet packet;
+    std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
+    if(chunk.size_ < FTProto::Packet::serialized_size(packet))
+        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+    if(packet.get_payload_size() < sizeof(uint64_t))
+        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+    std::memcpy(packet.data, chunk.data_.get() + sizeof(FTProto::PacketHeader), packet.header.size);
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
 
     std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
@@ -51,15 +83,13 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         std::getline(std::cin, confirm);
         if(confirm == "Y" || confirm == "y")
         {
-            FTProto::Packet confirm_packet
+            FTProto::Packet confirm_packet;
+            confirm_packet.header =
             {
-                .header =
-                {
-                    .type = FTProto::PacketType::CONFIRM,
-                    .flags = {},
-                    .size = 0,
-                    .file_id = 0
-                },
+                .type = FTProto::PacketType::CONFIRM,
+                .flags = {},
+                .size = 0,
+                .file_id = 0
             };
 
             ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
@@ -73,15 +103,13 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         }
         else if(confirm == "n" || confirm == "N")
         {
-            FTProto::Packet confirm_packet =
+            FTProto::Packet confirm_packet;
+            confirm_packet.header =
             {
-                .header =
-                {
-                    .type = FTProto::PacketType::CONFIRM_FAILED,
-                    .flags = {},
-                    .size = 0,
-                    .file_id = 0
-                },
+                .type = FTProto::PacketType::CONFIRM_FAILED,
+                .flags = {},
+                .size = 0,
+                .file_id = 0
             };
 
             ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
@@ -105,8 +133,11 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
         if(chunk.size_ < sizeof(FTProto::PacketHeader))
             co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
-        FTProto::Packet packet{};
-        std::memcpy(&packet, chunk.data_.get(), chunk.size_);
+        FTProto::Packet packet;
+        std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
+        if(chunk.size_ < FTProto::Packet::serialized_size(packet))
+            co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        std::memcpy(packet.data, chunk.data_.get() + sizeof(FTProto::PacketHeader), packet.header.size);
 
         auto ec = handle_packet(std::move(packet));
         if(ec)
@@ -137,6 +168,21 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
             if(ec)
                 return ec;
             
+            break;
+        }
+
+        case FTProto::PacketType::CREATE_SYMLINK:
+        {
+            std::filesystem::path relative_path;
+            std::filesystem::path target;
+            auto ec = extract_symlink(packet, relative_path, target);
+            if(ec)
+                return ec;
+
+            ec = file_builder_.create_symlink(relative_path, target);
+            if(ec)
+                return ec;
+
             break;
         }
 

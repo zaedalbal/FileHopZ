@@ -7,7 +7,8 @@
 File_walker::File_walker(const std::filesystem::path& root)
 : root_(root), end_()
 {
-    if(std::filesystem::is_regular_file(root_))
+    auto status = std::filesystem::symlink_status(root_);
+    if(std::filesystem::is_symlink(status) || std::filesystem::is_regular_file(status))
     {
         single_file_ = true;
         current_ = root;
@@ -34,7 +35,10 @@ bool File_walker::next()
         const auto entry = *it_;
         ++it_;
         std::error_code ec;
-        if(!entry.is_regular_file(ec) && !entry.is_directory(ec))
+        auto status = entry.symlink_status(ec);
+        if(!std::filesystem::is_symlink(status)
+            && !std::filesystem::is_regular_file(status)
+            && !std::filesystem::is_directory(status))
         {
             if(ec)
             {
@@ -65,7 +69,8 @@ std::filesystem::path File_walker::relative_path()
     if(single_file_)
         return current_.filename();
 
-    return std::filesystem::relative(current_, root_);
+    // relative может разыменовать symlink, а здесь нужен путь самой ссылки
+    return current_.lexically_relative(root_);
 }
 
 void File_walker::reset()
