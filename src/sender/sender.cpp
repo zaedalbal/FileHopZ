@@ -192,6 +192,10 @@ Sender::path_handler(const std::filesystem::path& file)
                 if(ec)
                     co_return ec;
 
+                ec = print_progress(bytes_read);
+                if(ec)
+                    co_return ec;
+
             }
             while(bytes_read == FTProto::PACKET_SIZE);
 

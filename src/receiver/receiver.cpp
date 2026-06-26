@@ -74,6 +74,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
     std::memcpy(packet.data, chunk.data_.get() + sizeof(FTProto::PacketHeader), packet.header.size);
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
+    bytes_remaining_ = bytes_to_transfer_;
 
     std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
     std::string confirm;
@@ -188,7 +189,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
 
         case FTProto::PacketType::FILE_DATA:
         {
-            if(bytes_to_transfer_ >= packet.get_payload_size())
+            if(bytes_remaining_ >= packet.get_payload_size())
             {
                 auto ec =
                 file_builder_.write(packet.get_payload(), packet.get_payload_size(), packet.header.file_id);
@@ -198,13 +199,17 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
                     return ec;
                 }
 
-                bytes_to_transfer_ -= packet.get_payload_size();
+                bytes_remaining_ -= packet.get_payload_size();
+
+                ec = print_progress(packet.get_payload_size());
+                if(ec)
+                    return ec;
             }
             else
             {
                 std::cerr << 
                 "Sender is attempting to send more data than agreed upon: possible malicious input\n"
-                << "bytes_to_transfer_ = " << bytes_to_transfer_ << "\n"
+                << "bytes_remaining_ = " << bytes_remaining_ << "\n"
                 << "bytes received in last packet = " << packet.get_payload_size() << "\n";
 
                 return boost::system::errc::make_error_code(boost::system::errc::file_too_large);
@@ -224,10 +229,10 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
 
         case FTProto::PacketType::END_TRANSFER:
         {
-            if(bytes_to_transfer_ != 0)
+            if(bytes_remaining_ != 0)
             {
                 std::cerr << "END_TRANSFER received before all file data: "
-                << bytes_to_transfer_ << " bytes left\n";
+                << bytes_remaining_ << " bytes left\n";
                 return boost::system::errc::make_error_code(boost::system::errc::bad_message);
             }
 

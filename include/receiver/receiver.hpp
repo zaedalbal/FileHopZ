@@ -28,6 +28,8 @@ class Receiver : public File_transfer
     private:
         bool end_transfer_flag_ = false;
 
+        uint64_t bytes_remaining_ = 0;
+
         std::filesystem::path& output_directory_;
 
         File_builder file_builder_;
