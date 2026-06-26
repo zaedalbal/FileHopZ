@@ -18,6 +18,12 @@ class File_builder
         // метод для создания файла
         boost::system::error_code create_file(const std::filesystem::path& relative_path, uint32_t file_id);
 
+        // метод для создания символической ссылки
+        boost::system::error_code create_symlink(
+            const std::filesystem::path& relative_path,
+            const std::filesystem::path& target
+        );
+
         // file_id — ключ для одновременной записи в несколько файлов
         boost::system::error_code write(const char* data, std::size_t size, uint32_t file_id);
 

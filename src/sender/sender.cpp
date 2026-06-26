@@ -1,5 +1,6 @@
 #include <sender/sender.hpp>
 #include <ftp_packet.hpp>
+#include <cstring>
 #include <iostream>
 
 Sender::Sender(
@@ -25,12 +26,14 @@ Sender::transfer_confirmation()
 
     while(file_walker_.next())
     {
-        if(std::filesystem::is_regular_file(file_walker_.current_path()))
+        auto status = std::filesystem::symlink_status(file_walker_.current_path());
+        if(std::filesystem::is_regular_file(status))
             bytes_to_transfer_ += std::filesystem::file_size(file_walker_.current_path());
     }
     file_walker_.reset();
     
     FTProto::Packet packet;
+    packet.header = {};
     packet.set_payload(&bytes_to_transfer_, sizeof(bytes_to_transfer_));
 
     ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
@@ -44,8 +47,7 @@ Sender::transfer_confirmation()
     if(chunk.size_ < sizeof(FTProto::PacketHeader))
         co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
-    packet = {};
-    std::memcpy(&packet, chunk.data_.get(), chunk.size_);
+    std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
 
     if(packet.header.type == FTProto::PacketType::CONFIRM)
         co_return co_await start_transfer();
@@ -66,15 +68,13 @@ Sender::start_transfer()
             co_return ec;
     }
 
-    FTProto::Packet end_transfer_packet =
+    FTProto::Packet end_transfer_packet;
+    end_transfer_packet.header =
     {
-        .header =
-        {
-            .type = FTProto::PacketType::END_TRANSFER,
-            .flags = {},
-            .size = 0,
-            .file_id = 0
-        }
+        .type = FTProto::PacketType::END_TRANSFER,
+        .flags = {},
+        .size = 0,
+        .file_id = 0
     };
 
     auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(end_transfer_packet));
@@ -88,7 +88,44 @@ Sender::start_transfer()
 boost::asio::awaitable<boost::system::error_code>
 Sender::path_handler(const std::filesystem::path& file)
 {
-    auto status = std::filesystem::status(file);
+    auto status = std::filesystem::symlink_status(file);
+
+    if(std::filesystem::is_symlink(status))
+    {
+        auto relative_path = file_walker_.relative_path().string();
+        auto target = std::filesystem::read_symlink(file).string();
+        auto payload_size = sizeof(uint16_t) + relative_path.size() + target.size();
+        if(payload_size > FTProto::PACKET_SIZE)
+        {
+            // Убрать временный вывод после появления кастомных ошибок проекта
+            std::cerr << "symlink payload is too long: " << file.string() << "\n";
+            co_return boost::system::errc::make_error_code(boost::system::errc::value_too_large);
+        }
+
+        FTProto::Packet packet;
+        auto link_path_size = static_cast<uint16_t>(relative_path.size());
+        // Payload: длина пути ссылки, путь ссылки, затем target как вернул read_symlink
+        std::memcpy(packet.data, &link_path_size, sizeof(link_path_size));
+        std::memcpy(packet.data + sizeof(link_path_size), relative_path.data(), relative_path.size());
+        std::memcpy(
+            packet.data + sizeof(link_path_size) + relative_path.size(),
+            target.data(),
+            target.size()
+        );
+        packet.header =
+        {
+            .type = FTProto::PacketType::CREATE_SYMLINK,
+            .flags = {},
+            .size = static_cast<uint16_t>(payload_size),
+            .file_id = 0
+        };
+
+        auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
+        if(ec)
+            co_return ec;
+
+        co_return boost::system::error_code();
+    }
 
     switch(status.type())
     {
@@ -98,8 +135,13 @@ Sender::path_handler(const std::filesystem::path& file)
             auto relative_path = file_walker_.relative_path().string();
 
             FTProto::Packet packet;
-            packet.header.file_id = file_id;
-            packet.header.type = FTProto::PacketType::CREATE_DIRECTORY;
+            packet.header =
+            {
+                .type = FTProto::PacketType::CREATE_DIRECTORY,
+                .flags = {},
+                .size = 0,
+                .file_id = file_id
+            };
             packet.set_payload(relative_path.data(), relative_path.size());
 
             auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
@@ -124,6 +166,7 @@ Sender::path_handler(const std::filesystem::path& file)
             FTProto::Packet packet_create_file;
             packet_create_file.set_payload(relative_path.data(), relative_path.size());
             packet_create_file.header.type = FTProto::PacketType::CREATE_FILE;
+            packet_create_file.header.flags = {};
             packet_create_file.header.file_id = file_id;
 
             auto error = co_await protostream_.send(FTProto::Packet::as_bytes(packet_create_file));
@@ -133,8 +176,13 @@ Sender::path_handler(const std::filesystem::path& file)
             do
             {
                 FTProto::Packet packet;
-                packet.header.file_id = file_id;
-                packet.header.type = FTProto::PacketType::FILE_DATA;
+                packet.header =
+                {
+                    .type = FTProto::PacketType::FILE_DATA,
+                    .flags = {},
+                    .size = 0,
+                    .file_id = file_id
+                };
                 
                 file_stream.read(packet.data, FTProto::PACKET_SIZE);
                 bytes_read = file_stream.gcount();
@@ -148,9 +196,13 @@ Sender::path_handler(const std::filesystem::path& file)
             while(bytes_read == FTProto::PACKET_SIZE);
 
             FTProto::Packet packet;
-            packet.header.file_id = file_id;
-            packet.header.size = 0;
-            packet.header.type = FTProto::PacketType::END_FILE;
+            packet.header =
+            {
+                .type = FTProto::PacketType::END_FILE,
+                .flags = {},
+                .size = 0,
+                .file_id = file_id
+            };
             
             auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(packet));
             if(ec)

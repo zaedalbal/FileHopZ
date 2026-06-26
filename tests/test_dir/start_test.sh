@@ -2,8 +2,11 @@
 
 TEST_DIR="test_transfer"
 RECV_DIR="test_transfer_recv"
+SEND_LOG="filehopz_send.log"
+RECV_LOG="filehopz_recv.log"
 
 rm -rf "$RECV_DIR"
+rm -f "$SEND_LOG" "$RECV_LOG"
 
 # массив для хранения PID дочерних процессов
 declare -a child_pids=()
@@ -35,7 +38,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # запуск recv и сразу дать ему "y"
-printf "y\n" | filehopz recv 12345 "$RECV_DIR" &
+printf "y\n" | filehopz recv 12345 "$RECV_DIR" > "$RECV_LOG" 2>&1 &
 recv_pid=$!
 child_pids+=($recv_pid)
 
@@ -43,7 +46,7 @@ child_pids+=($recv_pid)
 sleep 0.2
 
 # отправка
-filehopz send 127.0.0.1 12345 "$TEST_DIR" &
+filehopz send 127.0.0.1 12345 "$TEST_DIR" > "$SEND_LOG" 2>&1 &
 send_pid=$!
 child_pids+=($send_pid)
 
@@ -72,11 +75,60 @@ child_pids=("${child_pids[@]/$timeout_monitor_pid}")
 kill $timeout_monitor_pid 2>/dev/null || true
 
 # проверка результата
-if diff -rq "$TEST_DIR" "$RECV_DIR" > /dev/null; then
+check_regular_files() {
+    while IFS= read -r dir; do
+        local relative_dir="${dir#$TEST_DIR/}"
+        if [ "$dir" = "$TEST_DIR" ]; then
+            relative_dir=""
+        fi
+
+        if [ ! -d "$RECV_DIR/$relative_dir" ]; then
+            echo "missing directory: $RECV_DIR/$relative_dir"
+            return 1
+        fi
+    done < <(find "$TEST_DIR" -type d)
+
+    while IFS= read -r file; do
+        local relative_file="${file#$TEST_DIR/}"
+        if [ ! -f "$RECV_DIR/$relative_file" ]; then
+            echo "missing file: $RECV_DIR/$relative_file"
+            return 1
+        fi
+
+        if ! cmp -s "$file" "$RECV_DIR/$relative_file"; then
+            echo "file differs: $relative_file"
+            return 1
+        fi
+    done < <(find "$TEST_DIR" -type f)
+}
+
+check_symlink() {
+    local path="$1"
+    local expected_target="$2"
+
+    if [ ! -L "$RECV_DIR/$path" ]; then
+        echo "missing symlink: $RECV_DIR/$path"
+        return 1
+    fi
+
+    local actual_target
+    actual_target=$(readlink "$RECV_DIR/$path")
+    if [ "$actual_target" != "$expected_target" ]; then
+        echo "bad symlink target: $RECV_DIR/$path"
+        echo "expected: $expected_target"
+        echo "actual:   $actual_target"
+        return 1
+    fi
+}
+
+if check_regular_files \
+    && check_symlink "link_to_file_n1" "file_n1" \
+    && check_symlink "link_to_nested_dir" "nested_dir" \
+    && check_symlink "broken_link" "missing_target" \
+    && check_symlink "relative_target_link" "../test_transfer/file_n2"; then
     echo "test successful"
     exit 0
 else
     echo "test failed"
-    diff -rq "$TEST_DIR" "$RECV_DIR"
     exit 1
 fi

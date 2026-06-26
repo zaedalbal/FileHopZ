@@ -46,6 +46,36 @@ boost::system::error_code File_builder::create_file(const std::filesystem::path&
     return {};
 }
 
+boost::system::error_code File_builder::create_symlink(
+    const std::filesystem::path& relative_path,
+    const std::filesystem::path& target
+)
+{
+    std::error_code ec;
+    auto full_path = root_ / relative_path; // path::operator/ — склейка путей (std::filesystem)
+    std::filesystem::create_directories(full_path.parent_path(), ec);
+    if(ec)
+        return ec;
+
+    // symlink_status возвращает not_found для нового пути, это не ошибка создания
+    auto status = std::filesystem::symlink_status(full_path, ec);
+    if(ec && status.type() != std::filesystem::file_type::not_found)
+        return ec;
+    ec.clear();
+
+    // Перезаписываем только старую symlink, обычные файлы и директории не трогаем
+    if(std::filesystem::is_symlink(status))
+    {
+        std::filesystem::remove(full_path, ec);
+        if(ec)
+            return ec;
+    }
+    else if(std::filesystem::exists(status))
+        return boost::system::errc::make_error_code(boost::system::errc::file_exists);
+
+    std::filesystem::create_symlink(target, full_path, ec);
+    return ec;
+}
 
 boost::system::error_code File_builder::write(const char* data, std::size_t size, uint32_t file_id)
 {

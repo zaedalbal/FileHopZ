@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
         }
 
         std::filesystem::path files_to_send = std::filesystem::path(std::string(argv[4], strlen(argv[4])));
-        if(!std::filesystem::exists(files_to_send))
+        if(!std::filesystem::exists(std::filesystem::symlink_status(files_to_send)))
         {
             std::cout <<
             boost::system::errc::make_error_code(
