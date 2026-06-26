@@ -3,6 +3,7 @@ project(filehopz)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Boost REQUIRED COMPONENTS filesystem system thread)
 find_package(OpenSSL REQUIRED)
