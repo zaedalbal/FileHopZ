@@ -224,6 +224,13 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
 
         case FTProto::PacketType::END_TRANSFER:
         {
+            if(bytes_to_transfer_ != 0)
+            {
+                std::cerr << "END_TRANSFER received before all file data: "
+                << bytes_to_transfer_ << " bytes left\n";
+                return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+            }
+
             end_transfer_flag_ = true;
 
             break;
