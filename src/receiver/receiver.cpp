@@ -1,4 +1,5 @@
 #include "receiver/receiver.hpp"
+#include "errors/filehopz_error.hpp"
 #include "ftp_packet.hpp"
 #include <cstring>
 #include <iostream>
@@ -18,13 +19,13 @@ namespace
     {
         auto payload_size = packet.get_payload_size();
         if(payload_size < sizeof(uint16_t))
-            return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+            return filehopz::Error_code::malformed_symlink_payload;
 
         uint16_t link_path_size = 0;
         std::memcpy(&link_path_size, packet.data, sizeof(link_path_size));
 
         if(link_path_size > payload_size - sizeof(uint16_t))
-            return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+            return filehopz::Error_code::malformed_symlink_payload;
 
         auto link_path = packet.data + sizeof(uint16_t);
         auto target_path = link_path + link_path_size;
@@ -59,19 +60,17 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
     boost::system::error_code ec;
     auto chunk = co_await protostream_.receive();
     if(chunk.empty())
-        co_return boost::system::errc::make_error_code(
-            boost::system::errc::bad_address
-        );
+        co_return filehopz::Error_code::malformed_packet;
 
     if(chunk.size_ < sizeof(FTProto::PacketHeader))
-        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        co_return filehopz::Error_code::malformed_packet;
 
     FTProto::Packet packet;
     std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
     if(chunk.size_ < FTProto::Packet::serialized_size(packet))
-        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        co_return filehopz::Error_code::malformed_packet;
     if(packet.get_payload_size() < sizeof(uint64_t))
-        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        co_return filehopz::Error_code::malformed_packet;
     std::memcpy(packet.data, chunk.data_.get() + sizeof(FTProto::PacketHeader), packet.header.size);
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
     bytes_remaining_ = bytes_to_transfer_;
@@ -132,12 +131,12 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
         auto chunk = co_await protostream_.receive();
 
         if(chunk.size_ < sizeof(FTProto::PacketHeader))
-            co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+            co_return filehopz::Error_code::malformed_packet;
 
         FTProto::Packet packet;
         std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
         if(chunk.size_ < FTProto::Packet::serialized_size(packet))
-            co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+            co_return filehopz::Error_code::malformed_packet;
         std::memcpy(packet.data, chunk.data_.get() + sizeof(FTProto::PacketHeader), packet.header.size);
 
         auto ec = handle_packet(std::move(packet));
@@ -212,7 +211,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
                 << "bytes_remaining_ = " << bytes_remaining_ << "\n"
                 << "bytes received in last packet = " << packet.get_payload_size() << "\n";
 
-                return boost::system::errc::make_error_code(boost::system::errc::file_too_large);
+                return filehopz::Error_code::transfer_size_exceeded;
             }
 
             break;
@@ -233,7 +232,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
             {
                 std::cerr << "END_TRANSFER received before all file data: "
                 << bytes_remaining_ << " bytes left\n";
-                return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+                return filehopz::Error_code::premature_end_transfer;
             }
 
             end_transfer_flag_ = true;
@@ -242,7 +241,10 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
         }
 
         default:
-        {std::cerr << "unknown packet type\n";}
+        {
+            std::cerr << "unknown packet type\n";
+            return filehopz::Error_code::unknown_packet_type;
+        }
     }
     
     return {};

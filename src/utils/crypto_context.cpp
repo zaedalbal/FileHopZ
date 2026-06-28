@@ -1,4 +1,5 @@
 #include <utils/crypto_context.hpp>
+#include "errors/filehopz_error.hpp"
 
 // для сборки теста раскомментировать include ниже
 /*#include "../../include/utils/crypto_context.hpp"
@@ -12,19 +13,16 @@ boost::system::error_code Crypto_context::init()
     );
 
     if(!generation_context)
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_key_generation_failed;
 
     // генерация ключей
     if(EVP_PKEY_keygen_init(generation_context.get()) != 1)
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_key_generation_failed;
 
     EVP_PKEY* raw_key{nullptr};
 
     if(EVP_PKEY_keygen(generation_context.get(), &raw_key) != 1)
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_key_generation_failed;
 
     key_handle_.reset(raw_key);
 
@@ -36,7 +34,7 @@ boost::system::error_code Crypto_context::init()
         reinterpret_cast<unsigned char*>(own_public_key_.data()),
         &key_len
     ) != 1)
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_key_generation_failed;
 
     return {};
 }
@@ -60,23 +58,19 @@ boost::system::error_code Crypto_context::set_peer_public_key
         )
     );
     if(!peer_pub_key)
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_peer_key_failed;
 
     std::unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_DELETER> derive_context(
         EVP_PKEY_CTX_new(key_handle_.get(), nullptr)
     );
     if(!derive_context)
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_peer_key_failed;
 
     if(EVP_PKEY_derive_init(derive_context.get()) != 1)
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_peer_key_failed;
 
     if(EVP_PKEY_derive_set_peer(derive_context.get(), peer_pub_key.get()) != 1)
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_peer_key_failed;
 
     std::size_t secret_len = X25519_LEN;
     std::array<std::byte, X25519_LEN> shared_secret;
@@ -88,8 +82,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_peer_key_failed;
     }
 
     // оставшийся кусок метода: генерация ключа для ChaCha20
@@ -101,22 +94,19 @@ boost::system::error_code Crypto_context::set_peer_public_key
     if(!hkdf_context)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_hkdf_failed;
     }
 
     if(EVP_PKEY_derive_init(hkdf_context.get()) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_hkdf_failed;
     }
 
     if(EVP_PKEY_CTX_set_hkdf_md(hkdf_context.get(), EVP_sha256()) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_hkdf_failed;
     }
 
     // соль = соединение двух публичных ключей
@@ -146,8 +136,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_hkdf_failed;
     }
 
     if(EVP_PKEY_CTX_set1_hkdf_key(
@@ -157,8 +146,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_hkdf_failed;
     }
 
     const unsigned char key_purpose_label[] = "x25519-chacha20poly1305";
@@ -169,8 +157,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_hkdf_failed;
     }
 
     std::size_t key_length = KEY_LEN;
@@ -182,8 +169,7 @@ boost::system::error_code Crypto_context::set_peer_public_key
     ) != 1)
     {
         std::ranges::fill(shared_secret, std::byte{0});
-    // в будущем поменять возвращаемую ошибку
-        return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        return filehopz::Error_code::crypto_hkdf_failed;
     }
 
     std::ranges::fill(shared_secret, std::byte{0});
@@ -198,7 +184,7 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
 {
     if(!is_ready_)
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::operation_not_permitted)
+            filehopz::Error_code::crypto_context_not_ready
         );
 
     std::vector<std::byte> output_packet(NONCE_LEN + data.size_bytes() + TAG_LEN);
@@ -208,16 +194,14 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         reinterpret_cast<unsigned char*>(output_packet.data()),
         NONCE_LEN
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_random_failed
         );
 
     std::unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_DELETER> cipher_context(EVP_CIPHER_CTX_new());
     if(!cipher_context)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_encrypt_failed
         );
     
     if(EVP_EncryptInit_ex(
@@ -227,9 +211,8 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         nullptr,
         nullptr
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_encrypt_failed
         );    
 
     // явное указание длины nonce
@@ -239,9 +222,8 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         NONCE_LEN,
         nullptr
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_encrypt_failed
         );
     
     if(EVP_EncryptInit_ex(
@@ -251,9 +233,8 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(encryption_key_.data()),
         reinterpret_cast<const unsigned char*>(output_packet.data())
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_encrypt_failed
         );
 
     int encrypted_bytes = 0;
@@ -264,9 +245,8 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(data.data()),
         static_cast<int>(data.size_bytes())
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_encrypt_failed
         );
     
     int final_bytes = 0;
@@ -275,9 +255,8 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         nullptr,
         &final_bytes
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_encrypt_failed
         );
     
     if(EVP_CIPHER_CTX_ctrl(
@@ -286,9 +265,8 @@ Crypto_context::encrypt_data(std::span<const std::byte> data)
         TAG_LEN,
         output_packet.data() + NONCE_LEN + data.size_bytes()
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_encrypt_failed
         );
 
     return output_packet;
@@ -300,12 +278,12 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
 {
     if(!is_ready_)
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::operation_not_permitted)
+            filehopz::Error_code::crypto_context_not_ready
         );
     
     if(data.size_bytes() <= NONCE_LEN + TAG_LEN)
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::message_size)
+            filehopz::Error_code::crypto_ciphertext_too_short
         );
 
     const auto nonce_ptr = data.data();
@@ -317,9 +295,8 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         EVP_CIPHER_CTX_new()
     );
     if(!cipher_context)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_decrypt_failed
         );
     
     if(EVP_DecryptInit_ex(
@@ -329,9 +306,8 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         nullptr,
         nullptr
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_decrypt_failed
         );
     
     if(EVP_CIPHER_CTX_ctrl(
@@ -340,9 +316,8 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         NONCE_LEN,
         nullptr
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_decrypt_failed
         );
     
     if(EVP_DecryptInit_ex(
@@ -352,9 +327,8 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(encryption_key_.data()),
         reinterpret_cast<const unsigned char*>(nonce_ptr)
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_decrypt_failed
         );
     
     std::vector<std::byte> output_data(encrypted_data_size);
@@ -366,9 +340,8 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         reinterpret_cast<const unsigned char*>(encrypted_data_ptr),
         static_cast<int>(encrypted_data_size)
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_decrypt_failed
         );
     
     // установка ожидаемого тега; затем EVP_DecryptFinal_ex проверит его —
@@ -379,9 +352,8 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         TAG_LEN,
         const_cast<std::byte*>(tag_ptr)
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_decrypt_failed
         );
     
     int final_bytes = 0;
@@ -390,9 +362,8 @@ Crypto_context::decrypt_data(std::span<const std::byte> data)
         nullptr,
         &final_bytes
     ) != 1)
-    // в будущем поменять возвращаемую ошибку
         return std::unexpected(
-            boost::system::errc::make_error_code(boost::system::errc::bad_message)
+            filehopz::Error_code::crypto_decrypt_failed
         );
     
     return output_data;

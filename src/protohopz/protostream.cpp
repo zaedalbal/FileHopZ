@@ -1,4 +1,5 @@
 #include "protohopz/protostream.hpp"
+#include "errors/filehopz_error.hpp"
 #include <spdlog/spdlog.h>
 #include <iostream>
 #include <map>
@@ -44,7 +45,7 @@ ProtoStream::send(std::span<const std::byte> data)
     {
         spdlog::critical("ProtoStream::send: data size {} > PACKET_PAYLOAD_SIZE {}",
                          data.size(), PHZ::PACKET_PAYLOAD_SIZE);
-        co_return boost::system::errc::make_error_code(boost::system::errc::message_size);
+        co_return filehopz::Error_code::stream_payload_too_large;
     }
 
     PHZ::Packet packet =

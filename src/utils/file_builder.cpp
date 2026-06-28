@@ -1,4 +1,5 @@
 #include "utils/file_builder.hpp"
+#include "errors/filehopz_error.hpp"
 
 namespace
 {
@@ -38,7 +39,7 @@ boost::system::error_code File_builder::create_file(const std::filesystem::path&
     if(!file->is_open())
     {
         file.reset(); // освободить ресурс при ошибке открытия
-        return boost::system::errc::make_error_code(boost::system::errc::io_error);
+        return filehopz::Error_code::file_open_failed;
     }
 
     open_files_[file_id] = std::move(file);
@@ -81,13 +82,13 @@ boost::system::error_code File_builder::write(const char* data, std::size_t size
 {
     auto it = open_files_.find(file_id);
     if(it == open_files_.end())
-        return boost::system::errc::make_error_code(boost::system::errc::bad_file_descriptor);
+        return filehopz::Error_code::unknown_file_id;
 
     // static_cast: ofstream::write принимает std::streamsize, а size — std::size_t
     it->second->write(data, static_cast<std::streamsize>(size));
 
     if(it->second->bad() || it->second->fail())
-        return boost::system::errc::make_error_code(boost::system::errc::io_error);
+        return filehopz::Error_code::file_write_failed;
 
     return {};
 }
@@ -97,7 +98,7 @@ boost::system::error_code File_builder::close_file(uint32_t file_id)
 {
     auto it = open_files_.find(file_id);
     if(it == open_files_.end())
-        return boost::system::errc::make_error_code(boost::system::errc::bad_file_descriptor);
+        return filehopz::Error_code::unknown_file_id;
 
     it->second->close();
     open_files_.erase(it);

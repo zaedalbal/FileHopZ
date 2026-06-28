@@ -1,4 +1,5 @@
 #include <sender/sender.hpp>
+#include "errors/filehopz_error.hpp"
 #include <ftp_packet.hpp>
 #include <cstring>
 #include <iostream>
@@ -45,7 +46,7 @@ Sender::transfer_confirmation()
 
     auto chunk = co_await protostream_.receive();
     if(chunk.size_ < sizeof(FTProto::PacketHeader))
-        co_return boost::system::errc::make_error_code(boost::system::errc::bad_message);
+        co_return filehopz::Error_code::malformed_packet;
 
     std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
 
@@ -54,7 +55,7 @@ Sender::transfer_confirmation()
     else
     {
         std::cout << "Receiver refused files\n";
-        co_return ec;
+        co_return filehopz::Error_code::receiver_refused_transfer;
     }
 }
 
@@ -97,9 +98,8 @@ Sender::path_handler(const std::filesystem::path& file)
         auto payload_size = sizeof(uint16_t) + relative_path.size() + target.size();
         if(payload_size > FTProto::PACKET_SIZE)
         {
-            // Убрать временный вывод после появления кастомных ошибок проекта
             std::cerr << "symlink payload is too long: " << file.string() << "\n";
-            co_return boost::system::errc::make_error_code(boost::system::errc::value_too_large);
+            co_return filehopz::Error_code::symlink_payload_too_large;
         }
 
         FTProto::Packet packet;
@@ -155,9 +155,7 @@ Sender::path_handler(const std::filesystem::path& file)
        {
             std::ifstream file_stream(file, std::ios::binary);
             if(!file_stream)
-                co_return boost::system::errc::make_error_code(
-                    boost::system::errc::file_exists
-                );
+                co_return filehopz::Error_code::file_open_failed;
             
             auto file_id = file_id_counter_++;
             std::size_t bytes_read = 0;
@@ -219,8 +217,7 @@ Sender::path_handler(const std::filesystem::path& file)
        {
             std::cerr << "unknown file type\n";
 
-            co_return boost::system::errc::make_error_code
-            (boost::system::errc::bad_file_descriptor);
+            co_return filehopz::Error_code::unsupported_file_type;
        }
     }
 
