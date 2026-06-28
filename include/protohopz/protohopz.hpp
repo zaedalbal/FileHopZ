@@ -70,6 +70,7 @@ class ProtoHopZ
 
         double bandwidth_bytes_per_second = 0.0;
         double sshthresh_ = 64.0;
+        std::chrono::steady_clock::time_point last_peer_activity_;
 
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint peer_endpoint_;

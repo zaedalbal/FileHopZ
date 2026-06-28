@@ -47,6 +47,8 @@ namespace filehopz
                             return "transport failed to decrypt incoming packet";
                         case Error_code::stream_payload_too_large:
                             return "stream payload is larger than one FileHopZ transport packet";
+                        case Error_code::connection_idle_timeout:
+                            return "connection timed out: no packets received from peer for 30 seconds";
 
                         case Error_code::malformed_packet:
                             return "received malformed FileHopZ packet; sender and receiver may use incompatible versions or data is corrupted";
@@ -126,6 +128,8 @@ namespace filehopz
                 return "transport_decrypt_failed";
             case Error_code::stream_payload_too_large:
                 return "stream_payload_too_large";
+            case Error_code::connection_idle_timeout:
+                return "connection_idle_timeout";
 
             case Error_code::malformed_packet:
                 return "malformed_packet";
