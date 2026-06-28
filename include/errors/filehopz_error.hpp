@@ -23,6 +23,7 @@ namespace filehopz
         transport_encrypt_failed,
         transport_decrypt_failed,
         stream_payload_too_large,
+        connection_idle_timeout,
 
         malformed_packet,
         receiver_refused_transfer,

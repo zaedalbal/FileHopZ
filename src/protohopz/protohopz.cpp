@@ -35,6 +35,7 @@ void ProtoHopZ::start_loops()
 {
     stopping_loops_ = false;
     loop_error_.clear();
+    last_peer_activity_ = std::chrono::steady_clock::now();
 
     // loops спавнятся на strand_: их тела (между co_await) сериализованы относительно
     // друг друга и относительно send_packet/stop_loops/wait_in_flight_drained
@@ -571,6 +572,8 @@ ProtoHopZ::receive_loop()
             continue;
         }
 
+        last_peer_activity_ = std::chrono::steady_clock::now();
+
         SPDLOG_TRACE_PACKET(packet.header.sequence,
             "ProtoHopZ::receive_loop: got type={} seq={} size={}",
             static_cast<int>(packet.header.type),
@@ -671,6 +674,12 @@ ProtoHopZ::timeout_loop()
     while(true)
     {
         auto now = std::chrono::steady_clock::now();
+        if(now - last_peer_activity_ >= PHZ::IDLE_TIMEOUT)
+        {
+            SPDLOG_CRITICAL("ProtoHopZ::timeout_loop: no packets from peer for {} seconds",
+                            PHZ::IDLE_TIMEOUT.count());
+            co_return filehopz::Error_code::connection_idle_timeout;
+        }
 
         std::vector<uint32_t> timed_out;
 
