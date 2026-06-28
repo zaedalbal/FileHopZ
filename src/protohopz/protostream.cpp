@@ -64,16 +64,19 @@ ProtoStream::send(std::span<const std::byte> data)
     co_return co_await transport_.send_packet(&packet);
 }
 
-boost::asio::awaitable<ProtoStream::Chunk>
+boost::asio::awaitable<std::expected<ProtoStream::Chunk, boost::system::error_code>>
 ProtoStream::receive()
 {
     SPDLOG_TRACE("ProtoStream::receive: enter");
+
+    if(stream_error_)
+        co_return std::unexpected(stream_error_);
 
     if(!loops_running_)
     {
         auto ec = co_await start_loops();
         if(ec)
-            co_return Chunk();
+            co_return std::unexpected(ec);
     }
 
     boost::system::error_code ec;
@@ -93,14 +96,17 @@ ProtoStream::receive()
             spdlog::critical("ProtoStream::receive: ready_chunks_.pop error: {}", ec.message());
         else
             SPDLOG_TRACE("ProtoStream::receive: ready_chunks_.pop aborted");
-        co_return Chunk{};
+        co_return std::unexpected(ec);
     }
+
+    if(stream_error_)
+        co_return std::unexpected(stream_error_);
 
     SPDLOG_TRACE("ProtoStream::receive: got chunk size={}", chunk.size_);
     co_return chunk;
 }
 
-boost::asio::awaitable<void> ProtoStream::close()
+boost::asio::awaitable<boost::system::error_code> ProtoStream::close()
 {
     SPDLOG_TRACE("ProtoStream::close: draining in_flight");
 
@@ -115,6 +121,7 @@ boost::asio::awaitable<void> ProtoStream::close()
     // помечается loops_running_ = false до отмены сигналов, чтобы receive_chunks_loop
     // мог на это опереться в проверке, если в будущем захочется graceful exit
     loops_running_ = false;
+    stopping_loops_ = true;
 
     // останавливается приём чанков и затем транспорт
     cancellation_signal_receive_chunks_loop_.emit(boost::asio::cancellation_type::all);
@@ -126,6 +133,7 @@ boost::asio::awaitable<void> ProtoStream::close()
     co_await transport_.stop_loops();
 
     SPDLOG_TRACE("ProtoStream::close: done");
+    co_return stream_error_;
 }
 
 boost::asio::awaitable<boost::system::error_code>
@@ -133,6 +141,8 @@ ProtoStream::start_loops()
 {
     SPDLOG_TRACE("ProtoStream::start_loops: start, handshake_mode={}",
                  handshake_mode_ == INITIATOR ? "INITIATOR" : "RESPONDER");
+    stopping_loops_ = false;
+    stream_error_.clear();
     transport_.start_loops();
 
     boost::system::error_code ec;
@@ -155,14 +165,17 @@ ProtoStream::start_loops()
         receive_chunks_loop(),
         boost::asio::bind_cancellation_slot(
             cancellation_signal_receive_chunks_loop_.slot(),
-            boost::asio::detached
+            [this](std::exception_ptr, boost::system::error_code ec)
+            {
+                handle_receive_chunks_result(ec);
+            }
         )
     );
 
     co_return ec;
 }
 
-boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
+boost::asio::awaitable<boost::system::error_code> ProtoStream::receive_chunks_loop()
 {
     constexpr int SEQUENCE_WINDOW_SIZE = 65536;
 
@@ -179,7 +192,7 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
         {
             SPDLOG_TRACE("ProtoStream::receive_chunks_loop: transport_.receive_packet error: {}",
                          ec.message());
-            co_return;
+            co_return ec;
         }
 
         if(packet.header.type != PHZ::PacketType::DATA)
@@ -244,4 +257,34 @@ boost::asio::awaitable<void> ProtoStream::receive_chunks_loop()
                          flushed, expected_sequence, packets_buffer.size());
         }
     }
+
+    co_return ec;
+}
+
+void ProtoStream::handle_receive_chunks_result(boost::system::error_code ec)
+{
+    if(!ec)
+        return;
+
+    if(stopping_loops_ && ec == boost::asio::error::operation_aborted)
+    {
+        SPDLOG_TRACE("ProtoStream::receive_chunks_loop stopped by normal cancellation");
+        return;
+    }
+
+    store_stream_error(ec);
+}
+
+void ProtoStream::store_stream_error(boost::system::error_code ec)
+{
+    if(!ec || stream_error_)
+        return;
+
+    stream_error_ = ec;
+    loops_running_ = false;
+
+    SPDLOG_CRITICAL("ProtoStream background loop failed: {}", ec.message());
+
+    cancellation_signal_receive_chunks_loop_.emit(boost::asio::cancellation_type::all);
+    ready_chunks_.push(Chunk{});
 }
