@@ -134,23 +134,40 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
     {
         auto chunk_result = co_await protostream_.receive();
         if(!chunk_result)
+        {
+            // Перед commit можно безопасно удалить только временное дерево
+            file_builder_.cleanup();
             co_return chunk_result.error();
+        }
 
         auto chunk = std::move(chunk_result.value());
 
         if(chunk.size_ < sizeof(FTProto::PacketHeader))
+        {
+            file_builder_.cleanup();
             co_return filehopz::Error_code::malformed_packet;
+        }
 
         FTProto::Packet packet;
         std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
         if(chunk.size_ < FTProto::Packet::serialized_size(packet))
+        {
+            file_builder_.cleanup();
             co_return filehopz::Error_code::malformed_packet;
+        }
         std::memcpy(packet.data, chunk.data_.get() + sizeof(FTProto::PacketHeader), packet.header.size);
 
         auto ec = handle_packet(std::move(packet));
         if(ec)
+        {
+            file_builder_.cleanup();
             co_return ec;
+        }
     }
+
+    auto ec = file_builder_.commit();
+    if(ec)
+        co_return ec;
 
     co_return co_await protostream_.close();
 }
