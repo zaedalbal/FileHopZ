@@ -44,7 +44,11 @@ Sender::transfer_confirmation()
         co_return ec;
     }
 
-    auto chunk = co_await protostream_.receive();
+    auto chunk_result = co_await protostream_.receive();
+    if(!chunk_result)
+        co_return chunk_result.error();
+
+    auto chunk = std::move(chunk_result.value());
     if(chunk.size_ < sizeof(FTProto::PacketHeader))
         co_return filehopz::Error_code::malformed_packet;
 
@@ -82,8 +86,7 @@ Sender::start_transfer()
     if(ec)
         co_return ec;
 
-    co_await protostream_.close();
-    co_return boost::system::error_code();
+    co_return co_await protostream_.close();
 }
 
 boost::asio::awaitable<boost::system::error_code>

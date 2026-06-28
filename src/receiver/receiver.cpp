@@ -58,7 +58,11 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start()
 boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmation()
 {
     boost::system::error_code ec;
-    auto chunk = co_await protostream_.receive();
+    auto chunk_result = co_await protostream_.receive();
+    if(!chunk_result)
+        co_return chunk_result.error();
+
+    auto chunk = std::move(chunk_result.value());
     if(chunk.empty())
         co_return filehopz::Error_code::malformed_packet;
 
@@ -128,7 +132,11 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
 {
     while(!end_transfer_flag_)
     {
-        auto chunk = co_await protostream_.receive();
+        auto chunk_result = co_await protostream_.receive();
+        if(!chunk_result)
+            co_return chunk_result.error();
+
+        auto chunk = std::move(chunk_result.value());
 
         if(chunk.size_ < sizeof(FTProto::PacketHeader))
             co_return filehopz::Error_code::malformed_packet;
@@ -144,9 +152,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
             co_return ec;
     }
 
-    co_await protostream_.close();
-
-    co_return boost::system::error_code();
+    co_return co_await protostream_.close();
 }
 
 boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)

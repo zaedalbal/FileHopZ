@@ -33,6 +33,9 @@ ProtoHopZ::ProtoHopZ(
 
 void ProtoHopZ::start_loops()
 {
+    stopping_loops_ = false;
+    loop_error_.clear();
+
     // loops спавнятся на strand_: их тела (между co_await) сериализованы относительно
     // друг друга и относительно send_packet/stop_loops/wait_in_flight_drained
     boost::asio::co_spawn(
@@ -40,7 +43,10 @@ void ProtoHopZ::start_loops()
         receive_loop(),
         boost::asio::bind_cancellation_slot(
             cancellation_signal_receive_loop.slot(),
-            boost::asio::detached
+            [this](std::exception_ptr, boost::system::error_code ec)
+            {
+                handle_loop_result(ec);
+            }
         )
     );
 
@@ -49,11 +55,14 @@ void ProtoHopZ::start_loops()
         timeout_loop(),
         boost::asio::bind_cancellation_slot(
             cancellation_signal_timeout_loop.slot(),
-            boost::asio::detached
+            [this](std::exception_ptr, boost::system::error_code ec)
+            {
+                handle_loop_result(ec);
+            }
         )
     );
 
-    loops_started = true;
+    loops_started_ = true;
     SPDLOG_TRACE("ProtoHopZ loops started");
 }
 
@@ -66,6 +75,7 @@ boost::asio::awaitable<void> ProtoHopZ::stop_loops()
     co_await boost::asio::post(strand_, boost::asio::use_awaitable);
 
     boost::system::error_code ec;
+    stopping_loops_ = true;
 
     SPDLOG_TRACE("ProtoHopZ::stop_loops: cancelling loops; in_flight={}, received_packets_seen={}",
                  in_flight_.size(), received_packets_.size());
@@ -110,17 +120,65 @@ boost::asio::awaitable<void> ProtoHopZ::stop_loops()
 
     received_packets_queue_.push(std::move(end_packet));
 
-    loops_started = false;
+    loops_started_ = false;
 
     SPDLOG_TRACE("ProtoHopZ loops stoped");
     co_return;
+}
+
+void ProtoHopZ::handle_loop_result(boost::system::error_code ec)
+{
+    if(!ec)
+        return;
+
+    if(stopping_loops_ && ec == boost::asio::error::operation_aborted)
+    {
+        SPDLOG_TRACE("ProtoHopZ loop stopped by normal cancellation");
+        return;
+    }
+
+    store_loop_error(ec);
+}
+
+void ProtoHopZ::store_loop_error(boost::system::error_code ec)
+{
+    if(!ec || loop_error_)
+        return;
+
+    loop_error_ = ec;
+    loops_started_ = false;
+
+    SPDLOG_CRITICAL("ProtoHopZ background loop failed: {}", ec.message());
+
+    cancellation_signal_receive_loop.emit(boost::asio::cancellation_type::all);
+    cancellation_signal_timeout_loop.emit(boost::asio::cancellation_type::all);
+
+    boost::system::error_code cancel_ec;
+    socket_.cancel(cancel_ec);
+    if(cancel_ec)
+        SPDLOG_CRITICAL("ProtoHopZ::store_loop_error: socket_.cancel failed: {}", cancel_ec.message());
+
+    cwnd_.notify_one();
+    drained_signal_.set(true);
+
+    PHZ::Packet wake_packet =
+    {
+        .header =
+        {
+            .type = PHZ::PacketType::END_TRANSFER,
+            .flags = {},
+            .size = 0,
+            .sequence = ++sequence_counter_
+        }
+    };
+    received_packets_queue_.push(std::move(wake_packet));
 }
 
 boost::asio::awaitable<boost::system::error_code>
 ProtoHopZ::handshake_initiator()
 {
     SPDLOG_TRACE("ProtoHopZ::handshake_initiator: start");
-    if(!loops_started)
+    if(!loops_started_)
     {
         spdlog::critical("ProtoHopZ loops not running");
         co_return filehopz::Error_code::loops_not_running;
@@ -193,7 +251,7 @@ boost::asio::awaitable<boost::system::error_code>
 ProtoHopZ::handshake_responder()
 {
     SPDLOG_TRACE("ProtoHopZ::handshake_responder: start");
-    if(!loops_started)
+    if(!loops_started_)
     {
         spdlog::critical("ProtoHopZ: loops not running");
         co_return filehopz::Error_code::loops_not_running;
@@ -273,6 +331,9 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
     // async_send_to ниже suspend'ит корутину и отпускает strand, сеть не сериализуется
     co_await boost::asio::post(strand_, boost::asio::use_awaitable);
 
+    if(loop_error_)
+        co_return loop_error_;
+
     SPDLOG_TRACE("ProtoHopZ::send_packet: called type={} size={}, in_flight={}, cwnd={}",
                  static_cast<int>(source->header.type), source->header.size,
                  in_flight_.size(), cwnd_.get());
@@ -299,6 +360,8 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
             SPDLOG_CRITICAL("ProtoHopZ::send_packet: cwnd_.wait error: {}", ec.message());
             co_return ec;
         }
+        if(loop_error_)
+            co_return loop_error_;
         SPDLOG_TRACE("ProtoHopZ::send_packet: cwnd unblocked, retrying (in_flight={}, cwnd={})",
                      in_flight_.size(), cwnd_.get());
     }
@@ -405,6 +468,9 @@ ProtoHopZ::receive_packet(PHZ::Packet* destination)
         SPDLOG_TRACE("ProtoHopZ::receive_packet: pop returned error: {}", ec.message());
         co_return ec;
     }
+
+    if(loop_error_)
+        co_return loop_error_;
 
     *destination = packet;
 
@@ -696,6 +762,9 @@ ProtoHopZ::wait_in_flight_drained(std::chrono::steady_clock::duration timeout)
     // in_flight_.empty()) либо таймаута; всё на strand_
     co_await boost::asio::post(strand_, boost::asio::use_awaitable);
 
+    if(loop_error_)
+        co_return false;
+
     // pre-check на strand_ перед регистрацией waiter'а исключает lost-wakeup:
     // Async_value::wait ждёт следующего set(), текущее значение не проверяет,
     // поэтому пустоту проверяем сами — а т.к. мы на strand_, между этой проверкой
@@ -722,6 +791,9 @@ ProtoHopZ::wait_in_flight_drained(std::chrono::steady_clock::duration timeout)
     // выиграл сигнал -> in_flight_ пуст (true); выиграл таймер -> не пуст (false)
     if(in_flight_.empty())
     {
+        if(loop_error_)
+            co_return false;
+
         SPDLOG_TRACE("ProtoHopZ::wait_in_flight_drained: drained successfully");
         co_return true;
     }

@@ -52,13 +52,19 @@ class ProtoHopZ
         boost::asio::awaitable<boost::system::error_code>
         timeout_loop();
 
+        void handle_loop_result(boost::system::error_code ec);
+
+        void store_loop_error(boost::system::error_code ec);
+
         void send_ack(uint32_t sequence);
 
         void ack_handler(uint32_t sequence);
 
     private:
-        bool loops_started = false;
+        bool loops_started_ = false;
+        bool stopping_loops_ = false;
         bool connection_encrypted_ = false;
+        boost::system::error_code loop_error_;
 
         uint32_t sequence_counter_ = 0;
 

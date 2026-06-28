@@ -56,15 +56,20 @@ class ProtoStream
         boost::asio::awaitable<boost::system::error_code>
         send(std::span<const std::byte> data);
 
-        boost::asio::awaitable<Chunk> receive();
+        boost::asio::awaitable<std::expected<Chunk, boost::system::error_code>>
+        receive();
 
-        boost::asio::awaitable<void> close();
+        boost::asio::awaitable<boost::system::error_code> close();
 
     private:
         boost::asio::awaitable<boost::system::error_code>
         start_loops();
 
-        boost::asio::awaitable<void> receive_chunks_loop();
+        boost::asio::awaitable<boost::system::error_code> receive_chunks_loop();
+
+        void handle_receive_chunks_result(boost::system::error_code ec);
+
+        void store_stream_error(boost::system::error_code ec);
 
     private:
         HANDSHAKE_MODE handshake_mode_;
@@ -76,5 +81,7 @@ class ProtoStream
         Async_queue<Chunk> ready_chunks_;
 
         bool loops_running_ = false;
+        bool stopping_loops_ = false;
+        boost::system::error_code stream_error_;
         boost::asio::cancellation_signal cancellation_signal_receive_chunks_loop_;
 };
