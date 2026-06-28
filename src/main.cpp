@@ -2,10 +2,19 @@
 #include <boost/asio.hpp>
 #include <fstream>
 #include <charconv>
+#include "errors/filehopz_error.hpp"
 #include "sender/sender.hpp"
 #include "receiver/receiver.hpp"
 #include "logger/logger.hpp"
 #include <spdlog/spdlog.h>
+
+namespace
+{
+    void print_error(const boost::system::error_code& error)
+    {
+        std::cout << "Error: " << error.message() << "\n";
+    }
+}
 
 int main(int argc, char* argv[])
 {
@@ -74,7 +83,7 @@ int main(int argc, char* argv[])
         auto error = errc.get();
         if(error)
         {
-            std::cout << error.message() << "\n";
+            print_error(error);
             return 1;
         }
     }
@@ -107,7 +116,7 @@ int main(int argc, char* argv[])
         auto error = errc.get();
         if(error)
         {
-            std::cout << error.message() << "\n";
+            print_error(error);
             return 1;
         }
     }

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <span>
 #include <cstring>
+#include "errors/filehopz_error.hpp"
 #include "protohopz/protohopz_packet.hpp"
 
 // FTProto - File Transfer Protocol
@@ -59,7 +60,7 @@ namespace FTProto
         boost::system::error_code set_payload(const void* src, std::size_t size)
         {
             if(size > PACKET_SIZE)
-                return boost::system::errc::make_error_code(boost::system::errc::value_too_large);
+                return filehopz::Error_code::packet_too_large;
             std::memcpy(data, src, size);
             header.size = static_cast<uint16_t>(size);
             return {};

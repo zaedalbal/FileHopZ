@@ -1,4 +1,5 @@
 #include "protohopz/protohopz.hpp"
+#include "errors/filehopz_error.hpp"
 #include <boost/asio/detached.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
 #include <boost/asio/experimental/cancellation_condition.hpp>
@@ -122,9 +123,7 @@ ProtoHopZ::handshake_initiator()
     if(!loops_started)
     {
         spdlog::critical("ProtoHopZ loops not running");
-        co_return boost::system::errc::make_error_code(
-            boost::system::errc::operation_canceled
-        );
+        co_return filehopz::Error_code::loops_not_running;
     }
     auto ec = crypto_context_.init();
     if(ec)
@@ -170,9 +169,7 @@ ProtoHopZ::handshake_initiator()
     if(peer_handshake_packet.header.size != X25519_LEN)
     {
         spdlog::critical("Peer's key len not equal X25519 key len");
-        co_return boost::system::errc::make_error_code(
-            boost::system::errc::bad_message
-        );
+        co_return filehopz::Error_code::invalid_handshake_key_size;
     }
 
     std::span<std::byte, X25519_LEN> peer_public_key(
@@ -199,9 +196,7 @@ ProtoHopZ::handshake_responder()
     if(!loops_started)
     {
         spdlog::critical("ProtoHopZ: loops not running");
-        co_return boost::system::errc::make_error_code(
-            boost::system::errc::operation_canceled
-        );
+        co_return filehopz::Error_code::loops_not_running;
     }
 
     auto ec = crypto_context_.init();
@@ -226,9 +221,7 @@ ProtoHopZ::handshake_responder()
     if(peer_handshake_packet.header.size != X25519_LEN)
     {
         spdlog::critical("Peer's key len not equal X25519 key len");
-        co_return boost::system::errc::make_error_code(
-            boost::system::errc::bad_message
-        );
+        co_return filehopz::Error_code::invalid_handshake_key_size;
     }
 
     std::span<std::byte, X25519_LEN> peer_public_key(
@@ -323,9 +316,7 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
         {
             SPDLOG_CRITICAL("ProtoHopZ::send_packet: plaintext size {} > PACKET_PAYLOAD_SIZE {}",
                             packet.header.size, PHZ::PACKET_PAYLOAD_SIZE);
-            co_return boost::system::errc::make_error_code(
-                boost::system::errc::message_size
-            );
+            co_return filehopz::Error_code::packet_too_large;
         }
 
         std::span<std::byte> data_to_encrypt(
@@ -338,18 +329,14 @@ ProtoHopZ::send_packet(const PHZ::Packet* source)
         {
             SPDLOG_CRITICAL("ProtoHopZ::send_packet: encrypt_data failed for seq={}",
                             packet.header.sequence);
-            co_return boost::system::errc::make_error_code(
-                boost::system::errc::bad_address
-            );
+            co_return filehopz::Error_code::transport_encrypt_failed;
         }
 
         if(result.value().size() > PHZ::PACKET_SIZE)
         {
             SPDLOG_CRITICAL("ProtoHopZ::send_packet: ciphertext size {} > PACKET_SIZE {}",
                             result.value().size(), PHZ::PACKET_SIZE);
-            co_return boost::system::errc::make_error_code(
-                boost::system::errc::message_size
-            );
+            co_return filehopz::Error_code::packet_too_large;
         }
 
         std::memcpy(PHZ::payload_region(packet), result.value().data(), result.value().size());
@@ -538,9 +525,7 @@ ProtoHopZ::receive_loop()
                 if(packet.header.size > PHZ::PACKET_SIZE)
                 {
                     spdlog::critical("data size {} > PACKET_SIZE {}", packet.header.size, PHZ::PACKET_SIZE);
-                    co_return boost::system::errc::make_error_code(
-                        boost::system::errc::bad_message
-                    );
+                    co_return filehopz::Error_code::packet_too_large;
                 }
 
                 send_ack(packet.header.sequence);
@@ -562,9 +547,7 @@ ProtoHopZ::receive_loop()
                     if(!result)
                     {
                         spdlog::critical("decrypt error for DATA seq={}", packet.header.sequence);
-                        co_return boost::system::errc::make_error_code(
-                            boost::system::errc::bad_address
-                        );
+                        co_return filehopz::Error_code::transport_decrypt_failed;
                     }
 
                     packet.header.size = result.value().size();
@@ -587,9 +570,7 @@ ProtoHopZ::receive_loop()
                 if(packet.header.size > PHZ::PACKET_SIZE)
                 {
                     spdlog::critical("HANDSHAKE size {} > PACKET_SIZE {}", packet.header.size, PHZ::PACKET_SIZE);
-                    co_return boost::system::errc::make_error_code(
-                        boost::system::errc::bad_message
-                    );
+                    co_return filehopz::Error_code::packet_too_large;
                 }
 
                 send_ack(packet.header.sequence);
