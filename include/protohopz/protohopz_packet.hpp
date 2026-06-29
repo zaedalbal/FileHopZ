@@ -9,7 +9,7 @@ namespace PHZ
     constexpr std::size_t PACKET_PAYLOAD_SIZE = 1400; // plaintext до шифрования
     constexpr std::size_t PACKET_SIZE = PACKET_PAYLOAD_SIZE + CRYPT_OVERHEAD; // 1428 < MTU
     constexpr std::chrono::milliseconds TIMEOUT(128); // в миллисекундах
-    constexpr std::chrono::seconds IDLE_TIMEOUT(30); // сколько ждать пакетов от peer
+    constexpr std::chrono::seconds IDLE_TIMEOUT(60); // сколько ждать пакетов от peer
 
     // начальное окно (slow start); 64 пакета = ~90 КБ — не даётся стартовать
     // с cwnd=1 (это сильно режет RTT на локалке), но и не раздуваем in_flight_
