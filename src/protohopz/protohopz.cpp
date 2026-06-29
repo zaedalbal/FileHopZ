@@ -674,7 +674,8 @@ ProtoHopZ::timeout_loop()
     while(true)
     {
         auto now = std::chrono::steady_clock::now();
-        if(now - last_peer_activity_ >= PHZ::IDLE_TIMEOUT)
+        // таймут срабытвает только если уже произошел handshake
+        if(now - last_peer_activity_ >= PHZ::IDLE_TIMEOUT && connection_encrypted_)
         {
             SPDLOG_CRITICAL("ProtoHopZ::timeout_loop: no packets from peer for {} seconds",
                             PHZ::IDLE_TIMEOUT.count());
