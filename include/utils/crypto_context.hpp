@@ -1,10 +1,13 @@
 #pragma once
 #include <openssl/evp.h>
-#include <openssl/rand.h>
 #include <openssl/kdf.h>
 #include <boost/asio.hpp>
+#include <array>
+#include <cstdint>
 #include <expected>
+#include <memory>
 #include <span>
+#include <vector>
 
 constexpr int KEY_LEN   = 32; // chacha20-poly1305 ключ
 constexpr int NONCE_LEN = 12; // 96-bit nonce
@@ -74,5 +77,9 @@ class Crypto_context
 
         std::array<std::byte, X25519_LEN> peer_public_key_;
 
-        std::array<std::byte, KEY_LEN> encryption_key_;
+        std::array<std::byte, KEY_LEN> send_key_;
+
+        std::array<std::byte, KEY_LEN> recv_key_;
+
+        uint64_t send_nonce_counter_ = 0;
 };

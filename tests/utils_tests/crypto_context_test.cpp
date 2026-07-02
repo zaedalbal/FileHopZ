@@ -2,6 +2,7 @@
 // а потом слинковать
 
 #include "../../include/utils/crypto_context.hpp"
+#include "../../include/errors/filehopz_error.hpp"
 #include <print>
 #include <string_view>
 
@@ -37,8 +38,8 @@ static void test_encrypt_before_ready()
     check(!result.has_value(), "encrypt до set_peer_public_key возвращает ошибку");
     check(
         result.error() ==
-            boost::system::errc::make_error_code(boost::system::errc::operation_not_permitted),
-        "encrypt до ready: код ошибки operation_not_permitted");
+            make_error_code(filehopz::Error_code::crypto_context_not_ready),
+        "encrypt до ready: код ошибки crypto_context_not_ready");
 }
 
 // нельзя дешифровать до завершения handshake
@@ -53,8 +54,8 @@ static void test_decrypt_before_ready()
     check(!result.has_value(), "decrypt до set_peer_public_key возвращает ошибку");
     check(
         result.error() ==
-            boost::system::errc::make_error_code(boost::system::errc::operation_not_permitted),
-        "decrypt до ready: код ошибки operation_not_permitted");
+            make_error_code(filehopz::Error_code::crypto_context_not_ready),
+        "decrypt до ready: код ошибки crypto_context_not_ready");
 }
 
 // decrypt отклоняет слишком короткий пакет
@@ -67,15 +68,15 @@ static void test_decrypt_too_short()
     alice.set_peer_public_key(bob.get_own_public_key());
     bob.set_peer_public_key(alice.get_own_public_key());
 
-    // пакет меньше NONCE_LEN + TAG_LEN + 1
-    std::vector<std::byte> tiny(NONCE_LEN + TAG_LEN, std::byte{0});
+    // пакет меньше NONCE_LEN + TAG_LEN
+    std::vector<std::byte> tiny(NONCE_LEN + TAG_LEN - 1, std::byte{0});
     auto result = alice.decrypt_data(tiny);
 
     check(!result.has_value(), "decrypt слишком короткого пакета возвращает ошибку");
     check(
         result.error() ==
-            boost::system::errc::make_error_code(boost::system::errc::message_size),
-        "decrypt короткого пакета: код ошибки message_size");
+            make_error_code(filehopz::Error_code::crypto_ciphertext_too_short),
+        "decrypt короткого пакета: код ошибки crypto_ciphertext_too_short");
 }
 
 // базовый сценарий: зашифровал alice — расшифровал bob
@@ -105,7 +106,7 @@ static void test_basic_encrypt_decrypt()
         "расшифрованные данные совпадают с исходными");
 }
 
-// каждый вызов encrypt даёт разный шифртекст (разный nonce)
+// каждый вызов encrypt даёт разный шифртекст и следующий nonce
 static void test_different_nonce_each_call()
 {
     Crypto_context alice;
@@ -127,7 +128,19 @@ static void test_different_nonce_each_call()
     check(encrypted1.has_value() && encrypted2.has_value(), "оба вызова encrypt успешны");
     check(
         !std::ranges::equal(*encrypted1, *encrypted2),
-        "два шифртекста одного сообщения различаются (разные nonce)");
+        "два шифртекста одного сообщения различаются");
+
+    check(
+        !std::ranges::equal(
+            encrypted1->begin(),
+            encrypted1->begin() + NONCE_LEN,
+            encrypted2->begin(),
+            encrypted2->begin() + NONCE_LEN
+        ),
+        "два вызова encrypt используют разные nonce");
+
+    check((*encrypted1)[NONCE_LEN - 1] == std::byte{0}, "первый nonce заканчивается counter=0");
+    check((*encrypted2)[NONCE_LEN - 1] == std::byte{1}, "второй nonce заканчивается counter=1");
 }
 
 // подделка одного байта шифртекста — decrypt должен вернуть ошибку
@@ -203,7 +216,8 @@ static void test_empty_plaintext()
         "пакет пустых данных: размер = nonce + tag");
 
     auto decrypted = bob.decrypt_data(*encrypted);
-    check(!decrypted.has_value(), "decrypt пакета без данных возвращает ошибку (size <= nonce+tag)");
+    check(decrypted.has_value(), "decrypt пустых данных успешен");
+    check(decrypted->empty(), "decrypt пустых данных возвращает пустой plaintext");
 }
 
 // неверный ключ: bob пытается расшифровать пакет от alice своим ключом,
