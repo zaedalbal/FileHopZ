@@ -42,6 +42,9 @@ class ProtoHopZ
         boost::asio::awaitable<boost::system::error_code>
         receive_packet(PHZ::Packet* destination);
 
+        boost::asio::ip::udp::endpoint
+        local_udp_endpoint(boost::system::error_code& ec) const;
+
     private:
         boost::asio::awaitable<boost::system::error_code>
         resend_packet(uint32_t sequense);

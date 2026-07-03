@@ -55,3 +55,9 @@ boost::system::error_code File_transfer::print_progress(std::size_t bytes_transf
     
     return {};
 }
+
+boost::asio::ip::udp::endpoint
+File_transfer::local_udp_endpoint(boost::system::error_code& ec) const
+{
+    return protostream_.local_udp_endpoint(ec);
+}

@@ -56,4 +56,7 @@ Sender:   ./filehopz send <address> <port> <file/directory>
 Receiver: ./filehopz recv <port> <output_directory>
 ```
 
-Перед приёмом receiver выведет размер передаваемых данных и попросит подтверждение: `y` — принять, `n` — отказаться.
+После запуска receiver покажет локальные IPv4 адреса с портом в формате
+`address:port`, которые можно передать в sender. Перед приёмом receiver выведет
+размер передаваемых данных и попросит подтверждение: `y` — принять, `n` —
+отказаться.

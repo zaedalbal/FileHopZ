@@ -1,14 +1,70 @@
 #include "receiver/receiver.hpp"
 #include "errors/filehopz_error.hpp"
 #include "ftp_packet.hpp"
+#include <arpa/inet.h>
 #include <cstring>
+#include <ifaddrs.h>
 #include <iostream>
+#include <net/if.h>
+#include <vector>
 
 namespace
 {
     inline std::filesystem::path extract_path(const FTProto::Packet& packet)
     {
         return std::filesystem::path(std::string(packet.data, packet.header.size));
+    }
+
+    std::vector<boost::asio::ip::address_v4> local_ipv4_addresses()
+    {
+        std::vector<boost::asio::ip::address_v4> addresses;
+        ifaddrs* interfaces = nullptr;
+
+        // Получение системного списка сетевых интерфейсов
+        if(getifaddrs(&interfaces) != 0)
+            return addresses;
+
+        for(auto* interface = interfaces; interface != nullptr; interface = interface->ifa_next)
+        {
+            if(interface->ifa_addr == nullptr)
+                continue;
+
+            if(interface->ifa_addr->sa_family != AF_INET)
+                continue;
+
+            // Receiver слушает только IPv4, поэтому loopback и выключенные интерфейсы не показываются
+            if((interface->ifa_flags & IFF_UP) == 0)
+                continue;
+
+            if((interface->ifa_flags & IFF_LOOPBACK) != 0)
+                continue;
+
+            auto* ipv4 = reinterpret_cast<sockaddr_in*>(interface->ifa_addr);
+            boost::asio::ip::address_v4::bytes_type bytes;
+            std::memcpy(bytes.data(), &ipv4->sin_addr, bytes.size());
+            addresses.push_back(boost::asio::ip::address_v4(bytes));
+        }
+
+        freeifaddrs(interfaces);
+        return addresses;
+    }
+
+    void print_listening_addresses(const boost::asio::ip::udp::endpoint& endpoint)
+    {
+        auto port = endpoint.port();
+        auto addresses = local_ipv4_addresses();
+
+        std::cout << "Receiver listening on:\n";
+        if(addresses.empty())
+        {
+            // Fallback на фактический bind endpoint, если LAN-адреса не найдены
+            std::cout << "  " << endpoint.address().to_string() << ":" << port << "\n";
+            std::cout << "No non-loopback IPv4 addresses found\n";
+            return;
+        }
+
+        for(const auto& address : addresses)
+            std::cout << "  " << address.to_string() << ":" << port << "\n";
     }
 
     boost::system::error_code extract_symlink(
@@ -50,6 +106,13 @@ Receiver::Receiver(
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start()
 {
+    boost::system::error_code endpoint_ec;
+    auto endpoint = local_udp_endpoint(endpoint_ec);
+    if(endpoint_ec)
+        co_return endpoint_ec;
+
+    print_listening_addresses(endpoint);
+
     auto ec = co_await transfer_confirmation();
 
     co_return ec;

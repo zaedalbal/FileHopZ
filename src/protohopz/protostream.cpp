@@ -136,6 +136,12 @@ boost::asio::awaitable<boost::system::error_code> ProtoStream::close()
     co_return stream_error_;
 }
 
+boost::asio::ip::udp::endpoint
+ProtoStream::local_udp_endpoint(boost::system::error_code& ec) const
+{
+    return transport_.local_udp_endpoint(ec);
+}
+
 boost::asio::awaitable<boost::system::error_code>
 ProtoStream::start_loops()
 {

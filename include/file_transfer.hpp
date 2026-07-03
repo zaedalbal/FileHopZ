@@ -35,6 +35,9 @@ class File_transfer
         virtual boost::system::error_code
         print_progress(std::size_t bytes_transferred);
 
+        boost::asio::ip::udp::endpoint
+        local_udp_endpoint(boost::system::error_code& ec) const;
+
     protected:
         boost::asio::io_context& context_;
 

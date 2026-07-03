@@ -67,6 +67,12 @@ void ProtoHopZ::start_loops()
     SPDLOG_TRACE("ProtoHopZ loops started");
 }
 
+boost::asio::ip::udp::endpoint
+ProtoHopZ::local_udp_endpoint(boost::system::error_code& ec) const
+{
+    return socket_.local_endpoint(ec);
+}
+
 boost::asio::awaitable<void> ProtoHopZ::stop_loops()
 {
     // в будущем переписать stop_loops() так, чтобы отправлялись все пакеты из in_flight_,

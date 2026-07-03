@@ -61,6 +61,9 @@ class ProtoStream
 
         boost::asio::awaitable<boost::system::error_code> close();
 
+        boost::asio::ip::udp::endpoint
+        local_udp_endpoint(boost::system::error_code& ec) const;
+
     private:
         boost::asio::awaitable<boost::system::error_code>
         start_loops();
