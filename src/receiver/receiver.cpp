@@ -3,13 +3,45 @@
 #include "ftp_packet.hpp"
 #include <arpa/inet.h>
 #include <cstring>
+#include <iomanip>
 #include <ifaddrs.h>
 #include <iostream>
 #include <net/if.h>
+#include <sstream>
+#include <string>
 #include <vector>
 
 namespace
 {
+    std::string format_transfer_size(uint64_t bytes)
+    {
+        constexpr uint64_t kilobyte = 1024;
+        constexpr uint64_t megabyte = kilobyte * 1024;
+        constexpr uint64_t gigabyte = megabyte * 1024;
+
+        if(bytes < kilobyte)
+            return std::to_string(bytes) + " bytes";
+
+        auto divider = kilobyte;
+        auto unit = "KB";
+        if(bytes >= gigabyte)
+        {
+            divider = gigabyte;
+            unit = "GB";
+        }
+        else if(bytes >= megabyte)
+        {
+            divider = megabyte;
+            unit = "MB";
+        }
+
+        // отдельный поток вывода, чтобы не менять формат в std::cout
+        std::ostringstream output;
+        output << std::fixed << std::setprecision(2)
+               << static_cast<double>(bytes) / divider << " " << unit;
+        return output.str();
+    }
+
     inline std::filesystem::path extract_path(const FTProto::Packet& packet)
     {
         return std::filesystem::path(std::string(packet.data, packet.header.size));
@@ -142,7 +174,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
     std::memcpy(&bytes_to_transfer_, packet.get_payload(), sizeof(uint64_t));
     bytes_remaining_ = bytes_to_transfer_;
 
-    std::cout << "Receive files size = " << bytes_to_transfer_ << "\n";
+    std::cout << "Receive files size = " << format_transfer_size(bytes_to_transfer_) << "\n";
     std::string confirm;
     while(true)
     {
