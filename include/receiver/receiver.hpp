@@ -3,6 +3,7 @@
 #include "ftp_packet.hpp"
 #include "utils/file_builder.hpp"
 #include <boost/asio.hpp>
+#include <memory>
 
 class Receiver : public File_transfer
 {
@@ -32,5 +33,5 @@ class Receiver : public File_transfer
 
         std::filesystem::path& output_directory_;
 
-        File_builder file_builder_;
+        std::unique_ptr<File_builder> file_builder_;
 };

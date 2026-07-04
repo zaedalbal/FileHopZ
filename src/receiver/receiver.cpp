@@ -132,8 +132,7 @@ Receiver::Receiver(
     std::filesystem::path& output_directory
 )
 :   File_transfer(context, port),
-    output_directory_(output_directory),
-    file_builder_(output_directory_)
+    output_directory_(output_directory)
 {}
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start()
@@ -198,6 +197,8 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
                 co_return ec;
             }
 
+            file_builder_ = std::make_unique<File_builder>(output_directory_);
+
             co_return co_await start_transfer();
         }
         else if(confirm == "n" || confirm == "N")
@@ -211,8 +212,6 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
                 .file_id = 0
             };
 
-            file_builder_.cleanup();
-
             ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
             if(ec)
             {
@@ -220,7 +219,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
                 co_return ec;
             }
 
-            co_return ec;
+            co_return co_await protostream_.close();
         }
     }
 }
@@ -233,7 +232,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
         if(!chunk_result)
         {
             // Перед commit можно безопасно удалить только временное дерево
-            file_builder_.cleanup();
+            file_builder_->cleanup();
             co_return chunk_result.error();
         }
 
@@ -241,7 +240,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
 
         if(chunk.size_ < sizeof(FTProto::PacketHeader))
         {
-            file_builder_.cleanup();
+            file_builder_->cleanup();
             co_return filehopz::Error_code::malformed_packet;
         }
 
@@ -249,7 +248,7 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
         std::memcpy(&packet.header, chunk.data_.get(), sizeof(FTProto::PacketHeader));
         if(chunk.size_ < FTProto::Packet::serialized_size(packet))
         {
-            file_builder_.cleanup();
+            file_builder_->cleanup();
             co_return filehopz::Error_code::malformed_packet;
         }
         std::memcpy(packet.data, chunk.data_.get() + sizeof(FTProto::PacketHeader), packet.header.size);
@@ -257,12 +256,12 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()
         auto ec = handle_packet(std::move(packet));
         if(ec)
         {
-            file_builder_.cleanup();
+            file_builder_->cleanup();
             co_return ec;
         }
     }
 
-    auto ec = file_builder_.commit();
+    auto ec = file_builder_->commit();
     if(ec)
         co_return ec;
 
@@ -275,7 +274,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
     {
         case FTProto::PacketType::CREATE_DIRECTORY:
         {
-            auto ec = file_builder_.create_directory(extract_path(packet));
+            auto ec = file_builder_->create_directory(extract_path(packet));
             if(ec)
                 return ec;
 
@@ -284,7 +283,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
 
         case FTProto::PacketType::CREATE_FILE:
         {
-            auto ec = file_builder_.create_file(extract_path(packet), packet.header.file_id);
+            auto ec = file_builder_->create_file(extract_path(packet), packet.header.file_id);
             if(ec)
                 return ec;
             
@@ -299,7 +298,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
             if(ec)
                 return ec;
 
-            ec = file_builder_.create_symlink(relative_path, target);
+            ec = file_builder_->create_symlink(relative_path, target);
             if(ec)
                 return ec;
 
@@ -311,7 +310,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
             if(bytes_remaining_ >= packet.get_payload_size())
             {
                 auto ec =
-                file_builder_.write(packet.get_payload(), packet.get_payload_size(), packet.header.file_id);
+                file_builder_->write(packet.get_payload(), packet.get_payload_size(), packet.header.file_id);
                 if(ec)
                 {
                     std::cerr << "ec: " << ec.what() << "\n";
@@ -339,7 +338,7 @@ boost::system::error_code Receiver::handle_packet(FTProto::Packet packet)
 
         case FTProto::PacketType::END_FILE:
         {
-            auto ec = file_builder_.close_file(packet.header.file_id);
+            auto ec = file_builder_->close_file(packet.header.file_id);
             if(ec)
                 return ec;
 

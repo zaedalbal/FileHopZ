@@ -59,6 +59,10 @@ Sender::transfer_confirmation()
     else
     {
         std::cout << "Receiver refused files\n";
+        auto close_ec = co_await protostream_.close();
+        if(close_ec)
+            co_return close_ec;
+
         co_return filehopz::Error_code::receiver_refused_transfer;
     }
 }
