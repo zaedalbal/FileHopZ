@@ -2,36 +2,32 @@
 
 FileHopZ - это легковесный инструмент для передачи файлов по сети, ориентированный на простоту использования и скорость передачи
 
-## Текущее состояние проекта
-
-На данный момент проект работает только внутри локальной сети
-
-⚠️ Проект находится в активной разработке. Для критичных данных проверяйте результат передачи.
-
 ## Требования
 
 * Компилятор с поддержкой **C++23**
 * **CMake 3.25+**
 * **Git**
+* **Boost**
+* **CLI11**
 
 ### Установка зависимостей
 
 **Для Ubuntu/Debian:**
 
 ```bash
-sudo apt install git cmake g++ libboost-all-dev libssl-dev libspdlog-dev
+sudo apt install git cmake g++ libboost-all-dev libssl-dev libspdlog-dev libcli11-dev
 ```
 
 **Для Fedora:**
 
 ```bash
-sudo dnf install git cmake gcc-c++ boost-devel openssl-devel spdlog-devel
+sudo dnf install git cmake gcc-c++ boost-devel openssl-devel spdlog-devel cli11-devel
 ```
 
 **Для Arch Linux / Manjaro:**
 
 ```bash
-sudo pacman -S git cmake gcc boost openssl spdlog
+sudo pacman -S git cmake base-devel boost openssl spdlog cli11
 ```
 
 (если ваша версия CMake < 3.25, вы можете попробовать поменять CMakeLists.txt)
@@ -52,9 +48,12 @@ cmake --build .
 ## Использование
 
 ```bash
-Sender:   ./filehopz send <address> <port> <file/directory>
-Receiver: ./filehopz recv <port> <output_directory>
+Sender:   filehopz send <address> <port> <file/directory>
+Receiver: filehopz recv <port> <output_directory>
 ```
+
+Подробная справка доступна через `./filehopz --help`,
+`./filehopz send --help` и `./filehopz recv --help`.
 
 После запуска receiver покажет локальные IPv4 адреса с портом в формате
 `address:port`, которые можно передать в sender. Перед приёмом receiver выведет

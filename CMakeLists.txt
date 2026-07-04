@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Boost REQUIRED COMPONENTS filesystem system thread)
 find_package(OpenSSL REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(CLI11 CONFIG REQUIRED)
 
 # CONFIGURE_DEPENDS нужен чтобы cmake видел новые .cpp которые добавляются в проект
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
@@ -36,4 +37,5 @@ target_link_libraries(
     OpenSSL::Crypto
     OpenSSL::SSL
     spdlog::spdlog
+    CLI11::CLI11
 )
