@@ -27,7 +27,7 @@ File_builder::File_builder(const std::filesystem::path& root)
 : root_(root)
 {
     std::error_code ec;
-    std::filesystem::create_directories(root_, ec);
+    root_created_ = std::filesystem::create_directories(root_, ec);
     if(ec)
         return;
 
@@ -224,19 +224,28 @@ boost::system::error_code File_builder::commit()
     }
 
     std::filesystem::remove_all(staging_root_, fs_ec);
-    return to_boost_error(fs_ec);
+    auto remove_staging_ec = to_boost_error(fs_ec);
+    if(remove_staging_ec)
+        return remove_staging_ec;
+
+    committed_ = true;
+    return {};
 }
 
 void File_builder::cleanup()
 {
-    if(staging_root_.empty())
-        return;
-
     close_all();
 
-    // При ошибке передачи удаляем только staging, пользовательские файлы не трогаем
+    // Удаление root только если она создана текущим приемом и осталась пустой
     std::error_code ec;
-    std::filesystem::remove_all(staging_root_, ec);
+    if(!staging_root_.empty())
+        std::filesystem::remove_all(staging_root_, ec);
+
+    if(root_created_ && !committed_)
+    {
+        ec.clear();
+        std::filesystem::remove(root_, ec);
+    }
 }
 
 boost::system::error_code File_builder::close_all()

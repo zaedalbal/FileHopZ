@@ -211,6 +211,8 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
                 .file_id = 0
             };
 
+            file_builder_.cleanup();
+
             ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
             if(ec)
             {

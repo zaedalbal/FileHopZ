@@ -33,7 +33,7 @@ class File_builder
         // переносит временное дерево в финальную директорию
         boost::system::error_code commit();
 
-        // удаляет временное дерево после ошибки передачи
+        // удаляет временное дерево и созданную output-директорию после ошибки передачи
         void cleanup();
 
     private:
@@ -56,6 +56,12 @@ class File_builder
 
         // временная директория текущей передачи
         std::filesystem::path staging_root_;
+
+        // output-директория создана текущим приемом
+        bool root_created_ = false;
+
+        // передача успешно перенесена из staging
+        bool committed_ = false;
 
         // открытые файлы
         std::unordered_map<uint32_t, Open_file> open_files_;
