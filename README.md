@@ -52,8 +52,7 @@ Sender:   filehopz send <address> <port> <file/directory>
 Receiver: filehopz recv <port> <output_directory>
 ```
 
-Подробная справка доступна через `./filehopz --help`,
-`./filehopz send --help` и `./filehopz recv --help`.
+Подробная справка доступна через `filehopz --help`.
 
 После запуска receiver покажет локальные IPv4 адреса с портом в формате
 `address:port`, которые можно передать в sender. Перед приёмом receiver выведет
