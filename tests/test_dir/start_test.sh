@@ -37,8 +37,8 @@ cleanup() {
 # обработчик сигналов для очистки при зависании
 trap cleanup EXIT INT TERM
 
-# запуск recv и сразу дать ему "y"
-printf "y\n" | filehopz recv 12345 "$RECV_DIR" > "$RECV_LOG" 2>&1 &
+# запуск recv с автоматическим подтверждением
+filehopz recv --auto-accept 12345 "$RECV_DIR" > "$RECV_LOG" 2>&1 &
 recv_pid=$!
 child_pids+=($recv_pid)
 
