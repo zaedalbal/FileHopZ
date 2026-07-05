@@ -8,10 +8,16 @@
 class Receiver : public File_transfer
 {
     public:
+        struct Flags
+        {
+            bool auto_accept = false;
+        };
+
         explicit Receiver(
             boost::asio::io_context& context,
             unsigned short port,
-            std::filesystem::path& output_file
+            std::filesystem::path& output_file,
+            Flags flags
         );
 
         boost::asio::awaitable<boost::system::error_code>
@@ -20,6 +26,12 @@ class Receiver : public File_transfer
     private:
         boost::asio::awaitable<boost::system::error_code>
         transfer_confirmation() override;
+
+        boost::asio::awaitable<boost::system::error_code>
+        accept_transfer();
+
+        boost::asio::awaitable<boost::system::error_code>
+        refuse_transfer();
 
         boost::asio::awaitable<boost::system::error_code>
         start_transfer() override;
@@ -32,6 +44,8 @@ class Receiver : public File_transfer
         uint64_t bytes_remaining_ = 0;
 
         std::filesystem::path& output_directory_;
+
+        Flags flags_;
 
         std::unique_ptr<File_builder> file_builder_;
 };

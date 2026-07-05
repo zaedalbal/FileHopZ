@@ -26,6 +26,7 @@ public:
     {
         std::uint16_t port = 0;
         std::filesystem::path output_dir;
+        bool auto_accept = false;
     };
 
     using Command = std::variant<Send_args, Recv_args>;

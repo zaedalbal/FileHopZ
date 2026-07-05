@@ -129,10 +129,12 @@ namespace
 Receiver::Receiver(
     boost::asio::io_context& context,
     unsigned short port,
-    std::filesystem::path& output_directory
+    std::filesystem::path& output_directory,
+    Flags flags
 )
 :   File_transfer(context, port),
-    output_directory_(output_directory)
+    output_directory_(output_directory),
+    flags_(flags)
 {}
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start()
@@ -151,7 +153,6 @@ boost::asio::awaitable<boost::system::error_code> Receiver::start()
 
 boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmation()
 {
-    boost::system::error_code ec;
     auto chunk_result = co_await protostream_.receive();
     if(!chunk_result)
         co_return chunk_result.error();
@@ -174,6 +175,9 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
     bytes_remaining_ = bytes_to_transfer_;
 
     std::cout << "Receive files size = " << format_transfer_size(bytes_to_transfer_) << "\n";
+    if(flags_.auto_accept)
+        co_return co_await accept_transfer();
+
     std::string confirm;
     while(true)
     {
@@ -181,47 +185,57 @@ boost::asio::awaitable<boost::system::error_code> Receiver::transfer_confirmatio
         std::getline(std::cin, confirm);
         if(confirm == "Y" || confirm == "y")
         {
-            FTProto::Packet confirm_packet;
-            confirm_packet.header =
-            {
-                .type = FTProto::PacketType::CONFIRM,
-                .flags = {},
-                .size = 0,
-                .file_id = 0
-            };
-
-            ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
-            if(ec)
-            {
-                std::cerr << ec.message() << "\n";
-                co_return ec;
-            }
-
-            file_builder_ = std::make_unique<File_builder>(output_directory_);
-
-            co_return co_await start_transfer();
+            co_return co_await accept_transfer();
         }
         else if(confirm == "n" || confirm == "N")
         {
-            FTProto::Packet confirm_packet;
-            confirm_packet.header =
-            {
-                .type = FTProto::PacketType::CONFIRM_FAILED,
-                .flags = {},
-                .size = 0,
-                .file_id = 0
-            };
-
-            ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
-            if(ec)
-            {
-                std::cerr << ec.message() << "\n";
-                co_return ec;
-            }
-
-            co_return co_await protostream_.close();
+            co_return co_await refuse_transfer();
         }
     }
+}
+
+boost::asio::awaitable<boost::system::error_code> Receiver::accept_transfer()
+{
+    FTProto::Packet confirm_packet;
+    confirm_packet.header =
+    {
+        .type = FTProto::PacketType::CONFIRM,
+        .flags = {},
+        .size = 0,
+        .file_id = 0
+    };
+
+    auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
+    if(ec)
+    {
+        std::cerr << ec.message() << "\n";
+        co_return ec;
+    }
+
+    file_builder_ = std::make_unique<File_builder>(output_directory_);
+
+    co_return co_await start_transfer();
+}
+
+boost::asio::awaitable<boost::system::error_code> Receiver::refuse_transfer()
+{
+    FTProto::Packet confirm_packet;
+    confirm_packet.header =
+    {
+        .type = FTProto::PacketType::CONFIRM_FAILED,
+        .flags = {},
+        .size = 0,
+        .file_id = 0
+    };
+
+    auto ec = co_await protostream_.send(FTProto::Packet::as_bytes(confirm_packet));
+    if(ec)
+    {
+        std::cerr << ec.message() << "\n";
+        co_return ec;
+    }
+
+    co_return co_await protostream_.close();
 }
 
 boost::asio::awaitable<boost::system::error_code> Receiver::start_transfer()

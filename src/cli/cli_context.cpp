@@ -36,11 +36,14 @@ namespace
             "  send\n"
             "    address          Receiver address\n"
             "    port             Receiver port in range 1..65535\n"
-            "    file/directory   File or directory to send\n\n"
+            "    file/directory   File or directory to send\n"
+            "    Flags: none\n\n"
             "  recv\n"
             "    port             Listening port in range 1..65535\n"
-            "    output_directory Output directory\n\n"
-            "Flags:\n"
+            "    output_directory Output directory\n"
+            "    Flags:\n"
+            "      --auto-accept  Accept incoming transfer without interactive confirmation\n\n"
+            "Global flags:\n"
             "  -h, --help         Print this help message and exit\n";
     }
 
@@ -72,6 +75,11 @@ namespace
             ->check(CLI::Range(1, 65535));
         recv->add_option("output_directory", recv_args.output_dir, "Output directory")
             ->required();
+        recv->add_flag(
+            "--auto-accept",
+            recv_args.auto_accept,
+            "Accept incoming transfer without interactive confirmation"
+        );
     }
 }
 

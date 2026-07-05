@@ -59,10 +59,15 @@ int main(int argc, char* argv[])
     else if(auto recv_args = cli.recv_args())
     {
         auto output_dir = recv_args->output_dir;
+        Receiver::Flags flags
+        {
+            .auto_accept = recv_args->auto_accept
+        };
         auto receiver = std::make_shared<Receiver>(
             io_context,
             recv_args->port,
-            output_dir
+            output_dir,
+            flags
         );
 
         auto errc = boost::asio::co_spawn(
